@@ -27,6 +27,14 @@ def run(args, timeout=20):
         return 124, "", "docker 명령 시간 초과"
 
 
+def _docker_desktop_running():
+    import psutil
+    for p in psutil.process_iter(["name"]):
+        if (p.info["name"] or "").lower() in ("docker desktop.exe", "com.docker.backend.exe"):
+            return True
+    return False
+
+
 def _size_mb(text):
     m = re.match(r"\s*([\d.]+)\s*([A-Za-z]+)", text or "")
     if not m:
@@ -91,10 +99,19 @@ class DockerMonitor:
         info = _json_lines(out)[0] if out.strip() else {}
         server = info.get("Server") if isinstance(info, dict) else None
         if code != 0 or not server:
+            desktop_up = _docker_desktop_running()
+            if not DOCKER:
+                msg = "docker CLI가 설치되어 있지 않습니다."
+            elif code == 124 and desktop_up:
+                # The app is up but the engine never answers (seen after sleep/WSL hiccups); only a restart helps.
+                msg = ("Docker Desktop은 켜져 있지만 엔진이 응답하지 않아요(멈춤). "
+                       "트레이 아이콘에서 Docker Desktop을 재시작하거나 'wsl --shutdown' 후 다시 켜 주세요.")
+            elif desktop_up:
+                msg = "Docker Desktop은 켜져 있지만 엔진이 아직 준비되지 않았어요. 잠시 후 다시 확인합니다."
+            else:
+                msg = "Docker 엔진에 연결할 수 없습니다. Docker Desktop이 실행 중인지 확인하세요."
             with self.lock:
-                self.engine = {"ok": False, "version": None,
-                               "error": "Docker 엔진에 연결할 수 없습니다. Docker Desktop이 실행 중인지 확인하세요."
-                               if DOCKER else "docker CLI가 설치되어 있지 않습니다."}
+                self.engine = {"ok": False, "version": None, "error": msg, "stuck": code == 124 and desktop_up}
             return
         if self.ncpu == 1:
             c, o, _ = run(["info", "--format", "{{.NCPU}}"], timeout=10)
