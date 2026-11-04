@@ -235,6 +235,40 @@ def stop_processes(root_pids, timeout=5):
     return True, None
 
 
+_SCRIPT_HOSTS = {"wscript.exe", "cscript.exe"}
+_WRAPPERS = {"python.exe", "pythonw.exe", "uv.exe", "uvx.exe", "py.exe"}  # venv/uv launchers that just spawn the real server
+
+
+def _is_launcher(proc):
+    name = proc.name().lower()
+    if name in _SCRIPT_HOSTS:
+        return True
+    if name == "cmd.exe":
+        # Only a cmd running a script (cmd /c run_server.bat), never an interactive terminal window.
+        cmd = " ".join(proc.cmdline()).lower()
+        return " /c" in cmd or ".bat" in cmd or ".cmd" in cmd
+    if name in _WRAPPERS:
+        return len(proc.children()) == 1
+    return False
+
+
+def launcher_root(pid):
+    """Walk up from a server process through its launchers (venv/uv wrappers, a run_server.bat restart loop)
+    and return the topmost one, so stopping it doesn't just make the .bat relaunch the server.
+    Stops before terminals the user opened (PowerShell, interactive cmd, editors)."""
+    top = pid
+    try:
+        p = psutil.Process(pid)
+        for _ in range(6):
+            parent = p.parent()
+            if not parent or not _is_launcher(parent):
+                break
+            top, p = parent.pid, parent
+    except psutil.Error:
+        pass
+    return top
+
+
 def pids_on_port(port, ports_by_pid=None):
     ports_by_pid = listening_ports() if ports_by_pid is None else ports_by_pid
     return sorted(pid for pid, ports in ports_by_pid.items() if int(port) in ports)
@@ -413,7 +447,14 @@ def tail_file(path, lines=200):
             f.seek(0, 2)
             size = f.tell()
             f.seek(max(0, size - 256 * 1024))
-            data = f.read().decode("utf-8", errors="replace")
-        return data.splitlines()[-lines:], None
+            raw = f.read().splitlines()[-lines:]
+        # Logs written by .bat files are CP949 while Python apps often write UTF-8, sometimes into the same file.
+        out = []
+        for line in raw:
+            try:
+                out.append(line.decode("utf-8"))
+            except UnicodeDecodeError:
+                out.append(line.decode("cp949", errors="replace"))
+        return out, None
     except OSError as e:
         return [], f"로그 파일을 읽을 수 없습니다: {e}"

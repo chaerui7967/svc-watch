@@ -19,6 +19,21 @@ Windows 서비스 · 프로세스 · Docker 컨테이너 · HTTP 주소 · 작�
 - 필요한 것: Windows 10/11, Python 3.10 이상(PATH 등록). Docker 화면은 Docker Desktop이 실행 중일 때만 동작합니다.
 - 다른 PC로 옮길 때는 `.venv` 폴더를 빼고 복사하세요. 가상환경은 PC마다 새로 만들어야 합니다.
 
+### 로그인할 때 자동으로 켜기 (작업 스케줄러)
+
+`service\win\` 의 파일을 더블클릭해서 씁니다. 처음 한 번은 `run.bat` 으로 `.venv` 를 만들어 두세요.
+
+| 파일 | 하는 일 |
+|---|---|
+| `service_register.bat` | 작업 스케줄러에 `SvcWatchServer` 등록 (다음 로그인부터 창 없이 자동 시작) |
+| `service_restart.bat` | 지금 바로 (다시) 켜기 · 포트가 열릴 때까지 최대 60초 확인 |
+| `stop_server.bat` | 끄기 (일부러 끈 것이라 자동 재시작하지 않음) |
+| `service_unregister.bat` | 자동 시작 등록 해제 (실행 중인 서버는 그대로) |
+
+- 서버가 죽으면 `run_server.bat` 이 10초 뒤 다시 띄웁니다(연속 20번 넘게 죽으면 멈춤). 기록은 프로젝트 폴더의 `server.log` 에 남습니다.
+- 포트는 기본 8765이고, 프로젝트 폴더 `.env` 에 `PORT=` 가 있으면 그 값을 씁니다.
+- 자동 실행은 일반 권한입니다. 관리자 기능(방화벽 적용, SYSTEM 작업 제어)이 필요할 때는 `run-admin.bat` 을 쓰세요.
+
 ---
 
 ## 화면 둘러보기
@@ -127,6 +142,7 @@ Get-NetFirewallRule -Group 'svc.watch' | Remove-NetFirewallRule
 ## 구조
 
 ```
+service/win/     작업 스케줄러 자동 실행 스크립트 (.bat 은 CP949 + CRLF)
 backend/
   app.py         API (FastAPI) + 정적 파일 제공
   monitor.py     5초마다 서비스 상태·지표 수집, 이벤트, 자동 재시작

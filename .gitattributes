@@ -1,0 +1,3 @@
+# Windows 배치 파일은 작업 트리에서 반드시 CP949(ANSI 한국어) + CRLF 여야 한다.
+# UTF-8로 두면 cmd가 한글 줄 뒤를 잘못 읽어 줄 중간부터 실행한다.
+service/win/*.bat text working-tree-encoding=CP949 eol=CRLF

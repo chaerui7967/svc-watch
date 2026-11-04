@@ -362,7 +362,8 @@ class Monitor:
             system.run_task(s["target"], "stop")  # ends the launcher if it is still running; the server is usually detached
             pids = system.pids_on_port(port) if port else []
             if pids:
-                ok, err = system.stop_processes(pids)
+                # Launcher .bat files often loop and relaunch the server, so stop from the launcher down.
+                ok, err = system.stop_processes(sorted({system.launcher_root(p) for p in pids}))
                 if not ok:
                     return ok, err
             end = time.time() + 10
