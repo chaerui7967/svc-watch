@@ -85,8 +85,9 @@ class ServiceIn(BaseModel):
             raise ValueError("HTTP 헬스체크 주소는 http:// 또는 https:// 로 시작해야 합니다")
         if self.health == "process":
             self.health_target = None
-        if self.type != "proc":
-            self.start_cmd = self.cwd = None
+        if self.type not in ("proc", "http"):
+            self.start_cmd = None
+        self.cwd = (self.cwd or "").strip() or None
         return self
 
 
@@ -178,8 +179,12 @@ def delete_service(sid: int):
 
 
 def _project_folder(s):
+    """Folder set by the user, else the task's project folder, else where the running process lives."""
     t = monitor.task(s["target"]) if s["type"] == "task" else None
-    for path in ((t or {}).get("root"), s.get("cwd"), os.path.dirname(s["log_file"]) if s.get("log_file") else None):
+    with monitor.lock:
+        proc_cwd = (monitor.rt.get(s["id"]) or {}).get("proc_cwd")
+    for path in (s.get("cwd"), (t or {}).get("root"), proc_cwd,
+                 os.path.dirname(s["log_file"]) if s.get("log_file") else None):
         if path and os.path.isdir(path):
             return path
     return None
@@ -190,7 +195,7 @@ def _project_folder(s):
 def open_folder(sid: int):
     path = _project_folder(_find(sid))
     if not path:
-        fail("프로젝트 폴더를 알 수 없어요. 관리자 권한이 아니면 SYSTEM 작업의 폴더는 보이지 않으니, 설정 탭에서 로그 파일 경로를 지정해 주세요.")
+        fail("프로젝트 폴더를 알 수 없어요. 설정 탭에서 '프로젝트 폴더'를 입력해 주세요.")
     os.startfile(path)  # only folders derived from registered services, never a path sent by the browser
     return {"ok": True, "path": path}
 
@@ -214,18 +219,15 @@ def service_logs(sid: int, tail: int = 200):
     if s["type"] == "docker":
         lines, err = docker_mon.logs(s["target"], tail)
         return {"source": f"docker logs {s['target']}", "lines": lines, "error": err}
-    if s["type"] == "task":
-        t = monitor.task(s["target"])
-        path = system.newest_log(t.get("root")) if t else None
-        if path:
-            lines, err = system.tail_file(path, tail)
-            return {"source": f"{path} (자동으로 찾은 최신 로그)", "lines": lines, "error": err}
-        return {"source": None, "lines": [], "error": "프로젝트 폴더에서 로그 파일을 찾지 못했어요. 설정 탭에서 로그 파일 경로를 지정하세요."}
+    path = system.newest_log(_project_folder(s))
+    if path:
+        lines, err = system.tail_file(path, tail)
+        return {"source": f"{path} (프로젝트 폴더에서 자동으로 찾은 최신 로그)", "lines": lines, "error": err}
     if s["type"] == "svc":
         info = system.service_info(s["target"])
         lines, err = system.service_events(info["display_name"] if info else s["target"])
         return {"source": "Windows 이벤트 로그 (System · Service Control Manager)", "lines": lines, "error": err}
-    return {"source": None, "lines": [], "error": "로그 파일이 설정되지 않았어요. 설정 탭에서 로그 파일 경로를 지정하세요."}
+    return {"source": None, "lines": [], "error": "로그 파일을 찾지 못했어요. 설정 탭에서 로그 파일 경로나 프로젝트 폴더를 지정하세요."}
 
 
 @app.post("/api/test")
@@ -259,7 +261,9 @@ def test_service(body: ServiceIn):
         if body.health == "process":
             return {"ok": bool(pids), "message": msg}
     else:
-        msg = ""
+        port = checks.local_port(body.target)
+        pids = system.pids_on_port(port) if port else []
+        msg = f"이 PC의 포트 {port}: 서버 프로세스 PID {', '.join(map(str, pids))}" if pids else (f"이 PC의 포트 {port}에서 대기 중인 프로세스 없음" if port else "")
     ok, ms, err = checks.tcp(body.health_target) if body.health == "tcp" else checks.http(body.health_target)
     detail = f"{'성공' if ok else '실패'}" + (f" · {ms}ms" if ms is not None else "") + (f" · {err}" if err else "")
     return {"ok": ok, "message": (msg + " · " if msg else "") + f"헬스체크 {detail}"}

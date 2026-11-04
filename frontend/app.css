@@ -401,3 +401,14 @@
 .linkbtn svg { color: var(--chart-line); flex: none; }
 .rowlink { display: inline-flex; vertical-align: -2px; color: var(--chart-line); padding: 2px; border-radius: 4px; }
 .rowlink:hover { background: color-mix(in srgb, var(--chart-line) 20%, transparent); }
+.expo .grow span.tag { display: inline-block; font-family: var(--font-mono); vertical-align: 1px; }
+.svc span.tag { display: inline-block; max-width: none; }
+.spark span { min-width: 40px !important; }
+
+th[data-sort] button { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; border-radius: 4px; }
+th[data-sort] button:hover { color: var(--color-foreground); }
+th[data-sort] button:focus-visible { outline: 2px solid var(--color-ring); outline-offset: 2px; }
+th[data-sort] button::after { content: "\2195"; opacity: .3; font-size: 11px; }
+th.sorted { color: var(--color-foreground); }
+th.sorted[aria-sort="ascending"] button::after { content: "\25B2"; opacity: .9; font-size: 9px; }
+th.sorted[aria-sort="descending"] button::after { content: "\25BC"; opacity: .9; font-size: 9px; }

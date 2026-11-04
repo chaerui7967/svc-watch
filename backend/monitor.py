@@ -90,7 +90,7 @@ class Monitor:
         return self.rt.setdefault(sid, {
             "status": None, "reason": None, "pid": None, "ports": [], "cpu": None, "mem_mb": None,
             "started_at": None, "latency": None, "health_ok": None, "health_err": None, "last_check": 0,
-            "expected": None, "ext_ports": [], "web_url": None, "web_checked": 0, "cpu_hist": deque(maxlen=HISTORY_SAMPLES), "mem_hist": deque(maxlen=HISTORY_SAMPLES),
+            "expected": None, "ext_ports": [], "web_url": None, "web_checked": 0, "proc_cwd": None, "cpu_hist": deque(maxlen=HISTORY_SAMPLES), "mem_hist": deque(maxlen=HISTORY_SAMPLES),
             "slots": {}, "auto_restarts": deque(maxlen=10),
         })
 
@@ -137,18 +137,22 @@ class Monitor:
             self.last_sample = now
 
     def _probe_web(self, services, now):
-        """Every 60s, check whether each running task's port serves a web page (for the clickable link)."""
+        """Every 60s, check whether a running service's port serves a web page (for the clickable link).
+        HTTP services already have their URL, so they are skipped."""
         for s in services:
-            if s["type"] != "task" or not s.get("port"):
+            if s["type"] == "http":
                 continue
             with self.lock:
                 rt = self._rt(s["id"])
                 if rt["status"] not in ("running", "warning") or now - rt["web_checked"] < 60:
                     continue
+                ports = [int(s["port"])] if s["type"] == "task" and s.get("port") else list(rt["ext_ports"] or rt["ports"])
+                if not ports:
+                    continue
                 rt["web_checked"] = now
 
-            def work(sid=s["id"], port=s["port"]):
-                url = checks.detect_web(port)
+            def work(sid=s["id"], ports=ports[:3]):
+                url = next((u for u in (checks.detect_web(p) for p in ports) if u), None)
                 with self.lock:
                     if sid in self.rt:
                         self.rt[sid]["web_url"] = url
@@ -198,7 +202,10 @@ class Monitor:
                     else:
                         reason = f"컨테이너 상태: {st}"
         elif typ == "http":
-            alive = True
+            alive = True  # decided by the HTTP health check
+            port = checks.local_port(target)
+            if port:  # a web server on this PC: measure the process behind the port
+                pids = system.pids_on_port(port, ports_by_pid)
         elif typ == "task":
             port = int(s.get("port") or 0)
             pids = system.pids_on_port(port, ports_by_pid) if port else []
@@ -221,6 +228,12 @@ class Monitor:
                 started = min(psutil.Process(p).create_time() for p in pids)
             except psutil.Error:
                 pass
+            try:
+                proc_cwd = psutil.Process(pids[0]).cwd()
+            except (psutil.Error, OSError):
+                proc_cwd = None
+        else:
+            proc_cwd = None
 
         with self.lock:
             rt = self._rt(s["id"])
@@ -262,6 +275,8 @@ class Monitor:
                     status, reason = "warning", f"응답시간 {rt['latency']}ms (기준 {lat_limit}ms)"
 
             prev = rt["status"]
+            if proc_cwd:
+                rt["proc_cwd"] = proc_cwd
             rt.update(status=status, reason=reason, pid=pids[0] if pids else None, ports=ports, ext_ports=ext_ports,
                       cpu=cpu, mem_mb=mem, started_at=started if alive else None)
             if rt["expected"] is None:
@@ -313,7 +328,7 @@ class Monitor:
         elif typ == "task":
             ok, err = self._control_task(s, action)
         else:
-            return False, "HTTP 대상은 시작/중지할 수 없습니다"
+            ok, err = self._control_http(s, action)
         with self.lock:
             rt = self._rt(sid)
             rt["expected"] = action != "stop"
@@ -324,6 +339,22 @@ class Monitor:
         else:
             self._event("warning", f"{s['name']} {label} 실패", err or "", sid, s["name"])
         return ok, err
+
+    def _control_http(self, s, action):
+        port = checks.local_port(s["target"])
+        if not port:
+            return False, "이 PC가 아닌 주소는 시작/중지할 수 없어요"
+        if action in ("start", "restart") and not s.get("start_cmd"):
+            return False, "시작하려면 설정 탭에서 '시작 명령'을 입력하세요"
+        if action in ("stop", "restart"):
+            pids = system.pids_on_port(port)
+            if pids:
+                ok, err = system.stop_processes(pids)
+                if not ok:
+                    return ok, err
+        if action in ("start", "restart"):
+            return system.start_process(s.get("start_cmd"), s.get("cwd"), s.get("log_file"))
+        return True, None
 
     def _control_task(self, s, action):
         port = int(s.get("port") or 0)
@@ -381,7 +412,8 @@ class Monitor:
             view = {k: v for k, v in s.items()}
             view.update(
                 status=rt["status"] or "unknown", reason=rt["reason"], pid=rt["pid"], ports=rt["ports"], ext_ports=rt["ext_ports"],
-                web_url=rt["web_url"] if rt["status"] in ("running", "warning") else None,
+                web_url=(s["target"] if s["type"] == "http" else rt["web_url"]) if rt["status"] in ("running", "warning") else None,
+                proc_cwd=rt["proc_cwd"],
                 cpu=rt["cpu"], mem_mb=rt["mem_mb"], mem_limit_mb=mem_limit, latency=rt["latency"],
                 started_at=rt["started_at"], cpu_series=minute_series(cpu_h, per_min),
             )

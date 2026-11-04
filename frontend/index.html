@@ -123,10 +123,16 @@
           <table>
             <thead>
               <tr>
-                <th>상태</th><th>서비스</th><th>유형</th>
-                <th class="num c-net">PID</th><th class="num">포트</th>
-                <th class="num">CPU · 30분</th><th class="num">메모리</th>
-                <th class="num">응답</th><th class="num">가동</th><th class="num"><span class="sr-only">작업</span></th>
+                <th data-sort="status"><button type="button">상태</button></th>
+                <th data-sort="name"><button type="button">서비스</button></th>
+                <th data-sort="type"><button type="button">유형</button></th>
+                <th class="num c-net" data-sort="pid"><button type="button">PID</button></th>
+                <th class="num" data-sort="port"><button type="button">포트</button></th>
+                <th class="num" data-sort="cpu"><button type="button">CPU · 30분</button></th>
+                <th class="num" data-sort="mem"><button type="button">메모리</button></th>
+                <th class="num" data-sort="latency"><button type="button">응답</button></th>
+                <th class="num" data-sort="uptime"><button type="button">가동</button></th>
+                <th class="num"><span class="sr-only">작업</span></th>
               </tr>
             </thead>
             <tbody id="rows"></tbody>

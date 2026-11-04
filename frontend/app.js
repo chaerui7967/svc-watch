@@ -77,7 +77,7 @@ const TYPE = {
   task: { label: '작업 스케줄러', short: '예약 작업', icon: 'clock' },
 };
 
-function sparkline(data, threshold = 80, w = 84, h = 24) {
+function sparkline(data, threshold = 80, w = 64, h = 24) {
   if (!data || data.length < 2) return '<span class="muted" style="font-size:12px">수집 중</span>';
   const max = Math.max(100, ...data), step = w / (data.length - 1), y = v => h - 2 - (v / max) * (h - 4);
   const pts = data.map((v, i) => `${(i * step).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
@@ -157,7 +157,9 @@ function uptimeBar(slots, pct) {
 function logHtml(lines) {
   if (!lines.length) return '<span class="t">(로그 없음)</span>';
   return lines.map(l => {
-    const cls = /\b(error|err|fatal|exception|fail(ed)?|오류|실패)\b/i.test(l) ? 'line-err' : /\b(warn(ing)?|경고)\b/i.test(l) ? 'line-warn' : '';
+    // Log levels are usually upper-case tokens; lower-case words like "'error': None" are just data.
+    const cls = /\b(ERROR|CRITICAL|FATAL|Traceback|Exception)\b|\[(오류|에러|실패)\]|\b\w+Error:/.test(l) ? 'line-err'
+      : /\b(WARN|WARNING)\b|\[경고\]/.test(l) ? 'line-warn' : '';
     return `<span class="${cls}">${esc(l)}</span>`;
   }).join('\n');
 }
@@ -243,14 +245,15 @@ function renderRows() {
     $('#rows').innerHTML = `<tr><td colspan="10"><div class="empty"><b>등록된 서비스가 없어요</b>Windows 서비스, 프로세스, Docker 컨테이너, HTTP 주소를 등록해 모니터링을 시작하세요.<button class="btn accent" data-add>${ic('plus')}첫 서비스 등록</button></div></td></tr>`;
     return;
   }
-  const q = state.q.toLowerCase(), order = { down: 0, warning: 1, unknown: 2, running: 3, stopped: 4 };
+  const q = state.q.toLowerCase();
   const list = svcs
     .filter(s => (!state.status || s.status === state.status) && (!state.type || s.type === state.type))
     .filter(s => !q || [s.name, s.target, s.tags, (s.ports || []).join(',')].join(' ').toLowerCase().includes(q))
-    .sort((a, b) => order[a.status] - order[b.status] || a.name.localeCompare(b.name));
+    .sort(compareServices);
+  renderSortHeaders();
   $('#rows').innerHTML = list.map(s => {
     const lat = s.latency;
-    const canCtl = s.type !== 'http';
+    const canCtl = s.type !== 'http' || !!s.start_cmd;
     const running = s.status === 'running' || s.status === 'warning';
     return `<tr data-id="${s.id}" tabindex="0" aria-selected="${state.drawer?.kind === 'svc' && state.drawer.id === s.id}">
       <td>${badge(s.status)}</td>
@@ -268,6 +271,41 @@ function renderRows() {
     </tr>`;
   }).join('') || `<tr><td colspan="10" class="muted" style="text-align:center;padding:36px">조건에 맞는 서비스가 없습니다.</td></tr>`;
 }
+
+/* Column sorting: click a header to sort, click again to flip. Empty values always go last. */
+const STATUS_ORDER = { down: 0, warning: 1, unknown: 2, running: 3, stopped: 4 };
+const SORT_KEYS = {
+  status: s => STATUS_ORDER[s.status], name: s => s.name, type: s => TYPE[s.type].short,
+  pid: s => s.pid, port: s => (s.type === 'task' ? s.port : (s.ports || [])[0]), cpu: s => s.cpu, mem: s => s.mem_mb,
+  latency: s => s.latency, uptime: s => (s.started_at ? Date.now() / 1000 - s.started_at : null),
+};
+const SORT_DEFAULT_DIR = { cpu: -1, mem: -1, latency: -1, uptime: -1 };  // biggest first for measurements
+state.sort = (() => { try { return JSON.parse(localStorage.getItem('sort')) || { key: 'status', dir: 1 }; } catch { return { key: 'status', dir: 1 }; } })();
+
+function compareServices(a, b) {
+  const get = SORT_KEYS[state.sort.key] || SORT_KEYS.status;
+  const va = get(a), vb = get(b);
+  if (va == null && vb != null) return 1;
+  if (vb == null && va != null) return -1;
+  let r = 0;
+  if (va != null) r = typeof va === 'string' ? va.localeCompare(vb, 'ko') : va - vb;
+  return r * state.sort.dir || STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.name.localeCompare(b.name, 'ko');
+}
+
+function renderSortHeaders() {
+  $$('#view-dashboard th[data-sort]').forEach(th => {
+    const on = th.dataset.sort === state.sort.key;
+    th.setAttribute('aria-sort', on ? (state.sort.dir > 0 ? 'ascending' : 'descending') : 'none');
+    th.classList.toggle('sorted', on);
+  });
+}
+
+$$('#view-dashboard th[data-sort] button').forEach(b => b.onclick = () => {
+  const key = b.parentElement.dataset.sort;
+  state.sort = state.sort.key === key ? { key, dir: -state.sort.dir } : { key, dir: SORT_DEFAULT_DIR[key] || 1 };
+  localStorage.setItem('sort', JSON.stringify(state.sort));
+  renderRows();
+});
 
 async function controlService(id, action, btn) {
   const s = state.ov.services.find(x => x.id === id);
@@ -319,7 +357,7 @@ async function refreshDrawer(quiet) {
   $('#dName').textContent = s.name;
   $('#dDesc').textContent = `${TYPE[s.type].label} · ${s.target}`;
   const running = s.status === 'running' || s.status === 'warning';
-  $('#dActions').innerHTML = s.type === 'http' ? '' : running
+  $('#dActions').innerHTML = s.type === 'http' && !s.start_cmd ? '' : running
     ? `<button class="btn sm" data-dact="restart">${ic('restart')}재시작</button><button class="btn sm danger" data-dact="stop">${ic('stop')}중지</button>`
     : `<button class="btn sm" data-dact="start">${ic('play')}시작</button>`;
   $$('#dTabs .tab').forEach(t => t.setAttribute('aria-selected', t.dataset.tab === state.tab));
@@ -346,10 +384,10 @@ function renderServiceTab(s) {
         ${s.web_url ? `<dt>웹 주소</dt><dd><a class="linkbtn" href="${esc(s.web_url)}" target="_blank" rel="noopener" title="새 탭에서 열기">${ic('external')}<code>${esc(s.web_url)}</code></a></dd>` : ''}
         ${s.tags ? `<dt>태그</dt><dd>${esc(s.tags)}</dd>` : ''}
       </dl>
-      ${s.type === 'http' ? '' : `<div><h3>CPU 사용률 · 최근 30분 <b class="mono">${fmtPct(s.cpu)}</b></h3><div id="cCpu"></div></div>
+      ${s.type === 'http' && !s.pid ? '' : `<div><h3>CPU 사용률 · 최근 30분 <b class="mono">${fmtPct(s.cpu)}</b></h3><div id="cCpu"></div></div>
       <div><h3>메모리${s.mem_limit_mb ? ' · 한도 ' + fmtMem(s.mem_limit_mb) : ''} <b class="mono">${fmtMem(s.mem_mb)}</b></h3><div id="cMem"></div></div>`}
       <div><h3>가용성 · 최근 24시간</h3>${uptimeBar(s.avail_slots || [], s.uptime_pct)}</div>`;
-    if (s.type !== 'http') {
+    if (s.type !== 'http' || s.pid) {
       areaChart($('#cCpu'), s.cpu_series, { label: 'CPU 사용률', threshold: s.cpu_alert ? s.cpu_threshold : null });
       areaChart($('#cMem'), s.mem_series, { label: '메모리', unit: 'MB', max: s.mem_limit_mb || Math.max(...(s.mem_series || [1])) * 1.2 });
     }
@@ -436,10 +474,9 @@ function serviceFormHtml(s, edit) {
         ${[5, 10, 30, 60, 300].map(n => `<option value="${n}" ${+v.interval === n ? 'selected' : ''}>${n < 60 ? n + '초' : n / 60 + '분'}</option>`).join('')}</select></div>
     </div>
     <div class="field" data-f="htarget"><label for="f_ht" data-f="htlabel">포트</label><input class="input mono" id="f_ht" name="health_target" value="${esc(v.health_target || '')}"></div>
-    <div data-f="proconly" class="form" style="padding:0">
-      <div class="field"><label for="f_cmd">시작 명령 <span class="muted" style="font-weight:400">(시작/재시작 버튼에 사용)</span></label><input class="input mono" id="f_cmd" name="start_cmd" value="${esc(v.start_cmd || '')}" placeholder="예: node dist/server.js"></div>
-      <div class="field"><label for="f_cwd">작업 폴더</label><input class="input mono" id="f_cwd" name="cwd" value="${esc(v.cwd || '')}" placeholder="예: C:\\apps\\api"></div>
-    </div>
+    <div class="field" data-f="proconly"><label for="f_cmd">시작 명령 <span class="muted" style="font-weight:400">(선택 · 시작/재시작 버튼에 사용)</span></label><input class="input mono" id="f_cmd" name="start_cmd" value="${esc(v.start_cmd || '')}" placeholder="예: python app.py"></div>
+    <div class="field" data-f="cwdrow"><label for="f_cwd">프로젝트 폴더 <span class="muted" style="font-weight:400">(선택)</span></label><input class="input mono" id="f_cwd" name="cwd" value="${esc(v.cwd || '')}" placeholder="예: C:\\Users\\user\\Desktop\\work\\y_issues">
+      <div class="hint">비워 두면 실행 중인 서버 위치에서 자동으로 찾아요. 이 폴더의 logs\\*.log 도 자동으로 보여 줍니다.</div></div>
     <div class="two">
       <div class="field" data-f="logrow"><label for="f_log">로그 파일 <span class="muted" style="font-weight:400">(선택)</span></label><input class="input mono" id="f_log" name="log_file" value="${esc(v.log_file || '')}" placeholder="C:\\logs\\app.log"></div>
       <div class="field"><label for="f_tags">태그</label><input class="input" id="f_tags" name="tags" maxlength="100" value="${esc(v.tags)}" placeholder="backend, db"></div>
@@ -469,8 +506,9 @@ function wireServiceForm(form, s) {
     ht.hidden = t === 'http' || hv === 'process';
     form.querySelector('[data-f=htlabel]').textContent = hv === 'tcp' ? '확인할 포트' : '확인할 URL';
     form.querySelector('[name=health_target]').placeholder = hv === 'tcp' ? '8080' : 'http://localhost:8080/health';
-    form.querySelector('[data-f=proconly]').hidden = t !== 'proc';
-    form.querySelector('[data-f=logrow]').hidden = t === 'docker' || t === 'http';
+    form.querySelector('[data-f=proconly]').hidden = t !== 'proc' && t !== 'http';
+    form.querySelector('[data-f=cwdrow]').hidden = t === 'docker';
+    form.querySelector('[data-f=logrow]').hidden = t === 'docker';
     form.querySelector('[data-f=autorow]').hidden = t === 'http';
     form.querySelector('[data-f=cpurow]').hidden = t === 'http';
     form.querySelector('[data-f=latrow]').hidden = hv === 'process';
@@ -823,11 +861,11 @@ function renderFirewall() {
     const priv = isPrivateIp(a.cidr), expired = a.expires && a.expires < today;
     return `<tr>
       <td><label class="switch"><input type="checkbox" data-tog="${a.id}" ${a.on ? 'checked' : ''} aria-label="${esc(a.name)} 규칙 사용"><span></span></label></td>
-      <td><b style="font-weight:600">${esc(a.name)}</b></td>
+      <td style="white-space:nowrap"><b style="font-weight:600">${esc(a.name)}</b></td>
       <td><code class="pcode">${esc(a.cidr)}</code></td>
       <td class="mono" style="font-size:13px">${a.ports === 'all' ? '<span class="muted">전체</span>' : a.ports.join(', ')}</td>
       <td><span class="scope ${priv ? '' : 'net'}">${ic(priv ? 'server' : 'globe')}${priv ? 'LAN' : '인터넷'}</span></td>
-      <td><input type="date" class="input mono" data-exp="${a.id}" value="${a.expires || ''}" style="min-height:30px;font-size:12px;${expired ? 'border-color:var(--st-crit)' : ''}" aria-label="${esc(a.name)} 만료일" title="${expired ? '만료됨 · 다음 적용 때 제외돼요' : '만료일 (선택)'}"></td>
+      <td><input type="date" class="input mono" data-exp="${a.id}" value="${a.expires || ''}" style="min-height:30px;font-size:12px;width:136px;${expired ? 'border-color:var(--st-crit)' : ''}" aria-label="${esc(a.name)} 만료일" title="${expired ? '만료됨 · 다음 적용 때 제외돼요' : '만료일 (선택)'}"></td>
       <td><button class="btn sm icon danger" data-del="${a.id}" aria-label="${esc(a.name)} 삭제" title="삭제">${ic('trash')}</button></td>
     </tr>`;
   }).join('') || `<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">허용된 IP가 없어요. 이대로 적용하면 외부 접속이 모두 차단됩니다.</td></tr>`;

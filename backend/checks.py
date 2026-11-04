@@ -15,6 +15,21 @@ def tcp(port, host="127.0.0.1", timeout=1.0):
         return False, None, f"TCP {port} 연결 실패 ({e.__class__.__name__})"
 
 
+LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1", "0.0.0.0"}
+
+
+def local_port(url):
+    """Port of a URL that points at this PC, else None."""
+    from urllib.parse import urlparse
+    try:
+        u = urlparse(url or "")
+        if (u.hostname or "").lower() not in LOCAL_HOSTS:
+            return None
+        return u.port or (443 if u.scheme == "https" else 80)
+    except ValueError:
+        return None
+
+
 def detect_web(port, timeout=1.5):
     """Return the local URL if something on this port answers HTTP or HTTPS, else None."""
     for scheme in ("http", "https"):
