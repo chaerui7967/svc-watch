@@ -327,21 +327,95 @@ def task_root(task):
     return path
 
 
+_EDITORS = {"code.exe", "cursor.exe", "windsurf.exe", "idea64.exe", "pycharm64.exe", "devenv.exe"}
+
+
+def _task_script(task):
+    import re
+    m = re.search(r'"?([A-Za-z]:\\[^"]+?\.(?:vbs|bat|cmd|ps1|py|exe|js))"?', f"{task.get('args') or ''} {task.get('execute') or ''}", re.I)
+    return m.group(1) if m else None
+
+
+def _read_text(path):
+    try:
+        raw = open(path, "rb").read(256 * 1024)
+    except OSError:
+        return ""
+    for enc in ("utf-8", "cp949"):
+        try:
+            return raw.decode(enc)
+        except UnicodeDecodeError:
+            continue
+    return raw.decode("utf-8", errors="replace")
+
+
+def _configured_port(task):
+    """Port written in the project: .env PORT=, or `set PORT=` in the launcher scripts next to the task's script."""
+    import glob
+    import ntpath
+    import re
+    root, script = task.get("root"), _task_script(task)
+    if root:
+        m = re.search(r"^\s*PORT\s*=\s*(\d{2,5})\s*$", _read_text(ntpath.join(root, ".env")), re.M)
+        if m:
+            return int(m.group(1))
+    if script:
+        for path in [script] + glob.glob(ntpath.join(ntpath.dirname(script), "*.bat")):
+            m = re.search(r"^\s*set\s+\"?PORT=(\d{2,5})", _read_text(path), re.M | re.I)
+            if m:
+                return int(m.group(1))
+    return None
+
+
+def _ancestors(pid, depth=6):
+    out = []
+    try:
+        p = psutil.Process(pid)
+        for _ in range(depth):
+            p = p.parent()
+            if not p:
+                break
+            try:
+                out.append((p.name().lower(), " ".join(p.cmdline()).lower()))
+            except psutil.Error:
+                out.append((p.name().lower(), ""))
+    except psutil.Error:
+        pass
+    return out
+
+
 def guess_task_port(task, listeners):
-    """Find the port of the server a task started: a listener whose exe/cwd lives in the task's project folder,
-    otherwise a port number mentioned in the task's arguments or description."""
+    """Find the port of the server a task started, most reliable signal first:
+    1. the port configured in the project (.env PORT= / `set PORT=` in its launcher .bat) that is listening
+    2. a listener launched through the task's own script (its cmd/wscript ancestor mentions the script folder)
+    3. a listener running a program inside the project folder (e.g. .venv\\Scripts\\python.exe)
+    4. a listener whose working folder is the project, unless an editor (VS Code etc.) started it
+    5. a port number in the task's arguments or description"""
+    import ntpath
     import re
     root = (task.get("root") or "").lower().rstrip("\\")
-    if root:
-        for l in listeners:
-            for field in (l["cwd"], l["exe"], l["cmdline"]):
-                if field and field.lower().startswith(root + "\\") or (field or "").lower() == root:
-                    return l["port"]
+    script = _task_script(task)
+    script_dir = ntpath.dirname(script).lower() if script else None
     listening = {l["port"] for l in listeners}
+    in_root = lambda path: bool(root and path and (path.lower() == root or path.lower().startswith(root + "\\")))
+
+    configured = _configured_port(task)
+    if configured and configured in listening:
+        return configured
+    if script_dir:
+        for l in listeners:
+            if any(script_dir in cmd for _, cmd in _ancestors(l["pid"])):
+                return l["port"]
+    for l in listeners:
+        if in_root(l["exe"]):
+            return l["port"]
+    for l in listeners:
+        if in_root(l["cwd"]) and not any(name in _EDITORS for name, _ in _ancestors(l["pid"])):
+            return l["port"]
     for n in re.findall(r"(?<![\d.])(\d{4,5})(?![\d.])", f"{task.get('args') or ''} {task.get('description') or ''}"):
         if 1024 <= int(n) <= 65535 and (int(n) in listening or not listening):
             return int(n)
-    return None
+    return configured  # configured but not running right now
 
 
 def listener_details():

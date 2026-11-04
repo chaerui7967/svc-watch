@@ -25,14 +25,15 @@ Windows 서비스 · 프로세스 · Docker 컨테이너 · HTTP 주소 · 작�
 
 | 파일 | 하는 일 |
 |---|---|
-| `service_register.bat` | 작업 스케줄러에 `SvcWatchServer` 등록 (다음 로그인부터 창 없이 자동 시작) |
+| `service_register.bat` | 작업 스케줄러에 `SvcWatchServer` 등록 (다음 로그인부터 창 없이 관리자 권한으로 자동 시작) |
 | `service_restart.bat` | 지금 바로 (다시) 켜기 · 포트가 열릴 때까지 최대 60초 확인 |
 | `stop_server.bat` | 끄기 (일부러 끈 것이라 자동 재시작하지 않음) |
 | `service_unregister.bat` | 자동 시작 등록 해제 (실행 중인 서버는 그대로) |
 
 - 서버가 죽으면 `run_server.bat` 이 10초 뒤 다시 띄웁니다(연속 20번 넘게 죽으면 멈춤). 기록은 프로젝트 폴더의 `server.log` 에 남습니다.
 - 포트는 기본 8765이고, 프로젝트 폴더 `.env` 에 `PORT=` 가 있으면 그 값을 씁니다.
-- 자동 실행은 일반 권한입니다. 관리자 기능(방화벽 적용, SYSTEM 작업 제어)이 필요할 때는 `run-admin.bat` 을 쓰세요.
+- 자동 실행은 **가장 높은 수준의 권한(관리자)** 으로 돌아서 방화벽 적용, Windows 서비스·SYSTEM 작업 제어까지 됩니다.
+  로그인할 때는 확인 창이 뜨지 않고, 등록·해제·재시작·정지 bat을 실행할 때만 UAC 확인 창이 한 번 뜹니다.
 
 ---
 

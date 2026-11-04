@@ -2,6 +2,15 @@
 REM 이 파일은 CP949(ANSI 한국어)로 저장할 것. UTF-8로 저장하면 cmd가 파일을
 REM 잘못 읽어 줄 중간부터 실행하는 오류가 난다. (.gitattributes가 체크아웃 시 CP949로 바꿔 준다)
 
+REM 자동 실행이 관리자 권한(가장 높은 수준)으로 돌기 때문에, 등록/해제와 서버 끄기도 관리자 권한이 필요하다.
+REM 관리자 창이 아니면 UAC 확인 창을 띄워 이 파일을 관리자 권한으로 다시 연다.
+net session >nul 2>&1
+if errorlevel 1 (
+    echo 관리자 권한이 필요합니다. 확인 창에서 [예]를 눌러 주세요.
+    powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+    exit /b
+)
+
 echo 대시보드 서버를 재시작합니다...
 
 set PORT=8765
@@ -23,7 +32,9 @@ timeout /t 3 /nobreak >nul
 if exist "%~dp0server.stop" del "%~dp0server.stop" >nul 2>&1
 
 echo 서버를 다시 시작합니다...
-wscript.exe "%~dp0run_server_hidden.vbs"
+REM 등록된 작업으로 띄워야 작업 설정(관리자 권한)대로 실행된다. 등록 전이면 vbs로 직접 띄운다.
+schtasks /run /tn "SvcWatchServer" >nul 2>&1
+if errorlevel 1 wscript.exe "%~dp0run_server_hidden.vbs"
 
 REM 서버 부팅 완료 대기 (최대 60초, 2초 간격으로 확인하여 기동 즉시 완료 처리)
 set STARTED=0
