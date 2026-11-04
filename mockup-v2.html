@@ -1,0 +1,1366 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Service Dashboard · 목업 v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ===== Design tokens (ui-ux-pro-max: Real-Time Ops · Glassmorphism · Dark tech + status green) ===== */
+  :root {
+    --font-body: "Fira Sans", "Pretendard", "Malgun Gothic", system-ui, sans-serif;
+    --font-mono: "Fira Code", "Malgun Gothic", ui-monospace, Consolas, monospace;
+    --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px; --space-6: 32px;
+    --radius: 14px; --radius-sm: 8px;
+    --blur: 16px;
+    --ease: cubic-bezier(.2,.7,.2,1);
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --color-background: #0F172A;
+    --color-foreground: #F8FAFC;
+    --color-card: rgba(30, 41, 59, 0.55);
+    --color-card-solid: #1B2336;
+    --color-muted: rgba(39, 47, 66, 0.8);
+    --color-muted-foreground: #94A3B8;
+    --color-border: rgba(148, 163, 184, 0.16);
+    --color-border-strong: #475569;
+    --color-primary: #1E293B;
+    --color-secondary: #334155;
+    --color-accent: #22C55E;
+    --color-on-accent: #0F172A;
+    --color-ring: #F8FAFC;
+    --glow-1: rgba(34, 197, 94, 0.16);
+    --glow-2: rgba(59, 130, 246, 0.16);
+    --chart-line: #3B82F6;
+    --chart-fill: rgba(59, 130, 246, 0.22);
+    --chart-grid: rgba(148, 163, 184, 0.12);
+    --chart-axis: rgba(148, 163, 184, 0.35);
+    --logs-bg: rgba(2, 6, 23, 0.6);
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --color-background: #EEF2F7;
+    --color-foreground: #0F172A;
+    --color-card: rgba(255, 255, 255, 0.62);
+    --color-card-solid: #FFFFFF;
+    --color-muted: rgba(226, 232, 240, 0.8);
+    --color-muted-foreground: #475569;
+    --color-border: rgba(15, 23, 42, 0.10);
+    --color-border-strong: #94A3B8;
+    --color-primary: #E2E8F0;
+    --color-secondary: #CBD5E1;
+    --color-accent: #22C55E;
+    --color-on-accent: #0F172A;
+    --color-ring: #0F172A;
+    --glow-1: rgba(34, 197, 94, 0.18);
+    --glow-2: rgba(37, 99, 235, 0.16);
+    --chart-line: #2563EB;
+    --chart-fill: rgba(37, 99, 235, 0.16);
+    --chart-grid: rgba(15, 23, 42, 0.08);
+    --chart-axis: rgba(15, 23, 42, 0.25);
+    --logs-bg: #0F172A;
+  }
+  /* Status palette — always paired with icon + label */
+  :root { --st-good: #22C55E; --st-warn: #F59E0B; --st-crit: #EF4444; --st-off: #64748B; --warn-text: #F59E0B; --crit-text: #F87171; }
+  :root[data-theme="light"] { --warn-text: #B45309; --crit-text: #B91C1C; }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; font: 15px/1.5 var(--font-body); color: var(--color-foreground);
+    background:
+      radial-gradient(900px 600px at 8% -10%, var(--glow-1), transparent 60%),
+      radial-gradient(800px 600px at 100% 0%, var(--glow-2), transparent 60%),
+      var(--color-background);
+    background-attachment: fixed;
+  }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--color-ring); outline-offset: 2px; border-radius: 6px; }
+  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .muted { color: var(--color-muted-foreground); }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  svg.i { width: 18px; height: 18px; flex: none; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  svg.i.sm { width: 15px; height: 15px; }
+
+  .glass {
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    backdrop-filter: blur(var(--blur)) saturate(140%);
+    -webkit-backdrop-filter: blur(var(--blur)) saturate(140%);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 10px 30px rgba(2,6,23,0.18);
+  }
+
+  /* ===== Shell ===== */
+  .shell { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+  .side {
+    position: sticky; top: 0; height: 100vh; padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4);
+    border-right: 1px solid var(--color-border); background: color-mix(in srgb, var(--color-background) 55%, transparent);
+    backdrop-filter: blur(var(--blur)); -webkit-backdrop-filter: blur(var(--blur));
+  }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 6px 8px; }
+  .brand .logo { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; background: var(--color-accent); color: var(--color-on-accent); }
+  .brand b { font-family: var(--font-mono); font-size: 15px; letter-spacing: -.2px; }
+  .brand small { display: block; font-size: 12px; color: var(--color-muted-foreground); }
+  nav ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+  nav a {
+    display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--radius-sm);
+    color: var(--color-muted-foreground); text-decoration: none; font-size: 14px; transition: background .15s var(--ease), color .15s var(--ease);
+  }
+  nav a:hover { background: var(--color-muted); color: var(--color-foreground); }
+  nav a[aria-current="page"] { background: var(--color-muted); color: var(--color-foreground); font-weight: 600; box-shadow: inset 2px 0 0 var(--color-accent); }
+  nav .count { margin-left: auto; font: 600 12px var(--font-mono); background: var(--st-crit); color: #fff; padding: 0 7px; border-radius: 999px; }
+  .hostcard { margin-top: auto; padding: var(--space-3); font-size: 13px; display: grid; gap: 6px; }
+  .hostcard .row { display: flex; justify-content: space-between; gap: 8px; }
+  .hostcard .row span:first-child { color: var(--color-muted-foreground); }
+  .agent { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--st-good); }
+
+  main { padding: var(--space-5); display: grid; gap: var(--space-4); align-content: start; min-width: 0; }
+
+  /* ===== Topbar ===== */
+  .topbar { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+  .topbar h1 { margin: 0; font: 600 22px/1.2 var(--font-mono); letter-spacing: -.4px; }
+  .topbar p { margin: 2px 0 0; font-size: 13px; color: var(--color-muted-foreground); }
+  .spacer { flex: 1; }
+  .live {
+    display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px;
+    font: 500 12px var(--font-mono); border: 1px solid var(--color-border); background: var(--color-card);
+  }
+  .live .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--st-good); box-shadow: 0 0 0 0 rgba(34,197,94,.6); animation: ping 2s infinite; }
+  .live.paused .dot { background: var(--st-off); animation: none; box-shadow: none; }
+  @keyframes ping { 0% { box-shadow: 0 0 0 0 rgba(34,197,94,.55); } 80%,100% { box-shadow: 0 0 0 8px rgba(34,197,94,0); } }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 38px; padding: 0 14px;
+    border-radius: var(--radius-sm); border: 1px solid var(--color-border); background: var(--color-card);
+    font-size: 14px; font-weight: 500; transition: background .15s var(--ease), border-color .15s var(--ease), transform .1s var(--ease);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  }
+  .btn:hover { background: var(--color-muted); border-color: var(--color-border-strong); }
+  .btn:active { transform: translateY(1px); }
+  .btn.accent { background: var(--color-accent); color: var(--color-on-accent); border-color: transparent; font-weight: 600; }
+  .btn.accent:hover { background: #4ADE80; }
+  .btn.icon { width: 38px; padding: 0; }
+  .btn.sm { min-height: 32px; padding: 0 10px; font-size: 13px; }
+  .btn.sm.icon { width: 32px; }
+  .btn.danger:hover { color: var(--st-crit); border-color: color-mix(in srgb, var(--st-crit) 50%, transparent); }
+
+  /* ===== Status badge ===== */
+  .status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; white-space: nowrap; }
+  .pill { padding: 2px 9px 2px 6px; border-radius: 999px; border: 1px solid; }
+  .pill.running { color: var(--st-good); border-color: color-mix(in srgb, var(--st-good) 35%, transparent); background: color-mix(in srgb, var(--st-good) 10%, transparent); }
+  .pill.warning { color: var(--st-warn); border-color: color-mix(in srgb, var(--st-warn) 35%, transparent); background: color-mix(in srgb, var(--st-warn) 10%, transparent); }
+  .pill.down    { color: var(--st-crit); border-color: color-mix(in srgb, var(--st-crit) 40%, transparent); background: color-mix(in srgb, var(--st-crit) 12%, transparent); }
+  .pill.stopped { color: var(--color-muted-foreground); border-color: var(--color-border); background: var(--color-muted); }
+  :root[data-theme="light"] .pill.running { color: #15803D; }
+  :root[data-theme="light"] .pill.warning { color: #B45309; }
+  :root[data-theme="light"] .pill.down { color: #B91C1C; }
+
+  /* ===== KPI tiles ===== */
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-3); }
+  .tile { padding: var(--space-4); display: grid; gap: 6px; position: relative; overflow: hidden; }
+  .tile .label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--color-muted-foreground); }
+  .tile .value { font: 600 34px/1 var(--font-mono); letter-spacing: -1px; }
+  .tile .sub { font-size: 12px; color: var(--color-muted-foreground); }
+  .tile::after { content: ""; position: absolute; inset: auto 0 0 0; height: 2px; background: var(--bar, transparent); opacity: .8; }
+
+  /* ===== Grid row 2 ===== */
+  .row2 { display: grid; grid-template-columns: 2fr 1fr; gap: var(--space-3); }
+  .card-head { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-4) var(--space-4) 0; }
+  .card-head h2 { margin: 0; font: 600 14px var(--font-mono); }
+  .card-head .muted { font-size: 12px; }
+  .host-charts { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); padding: var(--space-3) var(--space-4) var(--space-4); }
+  .metric-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
+  .metric-head span { font-size: 12px; color: var(--color-muted-foreground); }
+  .metric-head b { font: 600 20px var(--font-mono); }
+
+  .feed { list-style: none; margin: 0; padding: var(--space-2) var(--space-2) var(--space-3); display: grid; }
+  .feed li { display: grid; grid-template-columns: 20px 1fr auto; gap: 10px; padding: 9px 8px; border-radius: var(--radius-sm); font-size: 13px; align-items: start; }
+  .feed li:hover { background: var(--color-muted); }
+  .feed b { font-weight: 600; display: block; }
+  .feed time { font: 12px var(--font-mono); color: var(--color-muted-foreground); }
+
+  /* ===== Filters + table ===== */
+  .toolbar { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--color-border); }
+  .search { position: relative; }
+  .search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--color-muted-foreground); }
+  .input, select.input {
+    min-height: 36px; padding: 0 12px; border-radius: var(--radius-sm); border: 1px solid var(--color-border);
+    background: var(--color-muted); font-size: 14px; transition: border-color .15s var(--ease);
+  }
+  .input:hover { border-color: var(--color-border-strong); }
+  .search .input { padding-left: 34px; width: 280px; }
+  .seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 10px; background: var(--color-muted); border: 1px solid var(--color-border); }
+  .seg button { border: 0; background: none; padding: 5px 10px; border-radius: 7px; font-size: 13px; color: var(--color-muted-foreground); transition: background .15s var(--ease), color .15s var(--ease); }
+  .seg button:hover { color: var(--color-foreground); }
+  .seg button[aria-pressed="true"] { background: var(--color-card-solid); color: var(--color-foreground); box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+  .seg .n { font-family: var(--font-mono); font-size: 12px; margin-left: 5px; opacity: .75; }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; min-width: 980px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--color-border); vertical-align: middle; }
+  th { font: 500 12px var(--font-mono); text-transform: uppercase; letter-spacing: .4px; color: var(--color-muted-foreground); }
+  tbody tr { cursor: pointer; transition: background .15s var(--ease); }
+  tbody tr:hover { background: var(--color-muted); }
+  tbody tr[aria-selected="true"] { background: color-mix(in srgb, var(--chart-line) 14%, transparent); }
+  tbody tr:last-child td { border-bottom: 0; }
+  .num { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 14px; }
+  .svc { display: flex; align-items: center; gap: 10px; }
+  .svc .ico { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; background: var(--color-muted); border: 1px solid var(--color-border); color: var(--color-muted-foreground); flex: none; }
+  .svc b { display: block; font-weight: 600; font-size: 14px; }
+  .svc span { font-size: 12px; color: var(--color-muted-foreground); font-family: var(--font-mono); }
+  .svc span.alert { color: var(--warn-text); font-family: var(--font-body); }
+  .svc span.alert.crit { color: var(--crit-text); }
+  .spark { display: flex; align-items: center; gap: 10px; justify-content: flex-end; }
+  .actions { display: flex; gap: 4px; justify-content: flex-end; }
+
+  /* ===== Drawer ===== */
+  .scrim { position: fixed; inset: 0; background: rgba(2,6,23,.45); opacity: 0; pointer-events: none; transition: opacity .2s var(--ease); z-index: 19; }
+  .scrim.open { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; top: 12px; right: 12px; bottom: 12px; width: min(580px, calc(100vw - 24px)); z-index: 20;
+    transform: translateX(calc(100% + 24px)); transition: transform .25s var(--ease); overflow-y: auto;
+    background: color-mix(in srgb, var(--color-card-solid) 82%, transparent);
+  }
+  .drawer.open { transform: none; }
+  .drawer-head { padding: var(--space-4) var(--space-5); display: flex; gap: var(--space-3); align-items: flex-start; }
+  .drawer-head h2 { margin: 6px 0 2px; font: 600 19px var(--font-mono); }
+  .drawer-head .meta { font-size: 13px; color: var(--color-muted-foreground); font-family: var(--font-mono); }
+  .tabs { display: flex; gap: 2px; padding: 0 var(--space-5); border-bottom: 1px solid var(--color-border); position: sticky; top: 0; background: inherit; z-index: 2; backdrop-filter: blur(var(--blur)); }
+  .tab { border: 0; background: none; padding: 10px 12px; font-size: 14px; color: var(--color-muted-foreground); border-bottom: 2px solid transparent; transition: color .15s var(--ease); }
+  .tab:hover { color: var(--color-foreground); }
+  .tab[aria-selected="true"] { color: var(--color-foreground); border-bottom-color: var(--color-accent); font-weight: 600; }
+  .drawer-body { padding: var(--space-4) var(--space-5) var(--space-6); display: grid; gap: var(--space-5); }
+  .callout { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--radius-sm); font-size: 14px; border: 1px solid; }
+  .callout.warning { border-color: color-mix(in srgb, var(--st-warn) 40%, transparent); background: color-mix(in srgb, var(--st-warn) 10%, transparent); }
+  .callout.down { border-color: color-mix(in srgb, var(--st-crit) 40%, transparent); background: color-mix(in srgb, var(--st-crit) 10%, transparent); }
+  .kv { display: grid; grid-template-columns: 110px 1fr; gap: 8px 14px; font-size: 14px; margin: 0; }
+  .kv dt { color: var(--color-muted-foreground); font-size: 13px; }
+  .kv dd { margin: 0; word-break: break-all; }
+  .kv code { font: 13px var(--font-mono); background: var(--color-muted); padding: 2px 7px; border-radius: 6px; }
+  h3 { margin: 0 0 8px; font: 600 13px var(--font-mono); color: var(--color-muted-foreground); display: flex; justify-content: space-between; align-items: baseline; }
+  h3 b { color: var(--color-foreground); font-size: 16px; }
+
+  .chart { position: relative; border-radius: var(--radius-sm); }
+  .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .chart:focus-visible { outline-offset: 4px; }
+  .tip {
+    position: absolute; pointer-events: none; z-index: 3; white-space: nowrap; transform: translate(-50%, calc(-100% - 10px));
+    font: 12px var(--font-mono); padding: 5px 9px; border-radius: 7px; opacity: 0; transition: opacity .1s;
+    background: var(--color-card-solid); border: 1px solid var(--color-border-strong); box-shadow: 0 6px 18px rgba(0,0,0,.3);
+  }
+  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--color-muted-foreground); margin-top: 6px; flex-wrap: wrap; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+  .logs { background: var(--logs-bg); color: #CBD5E1; border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 12px 14px; font: 12.5px/1.7 var(--font-mono); max-height: 320px; overflow: auto; white-space: pre-wrap; }
+  .logs .w { color: #FBBF24; } .logs .e { color: #F87171; } .logs .t { color: #64748B; } .logs .ok { color: #4ADE80; }
+  .events { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+  .events li { display: grid; grid-template-columns: 20px 1fr auto; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--color-border); font-size: 14px; }
+  .events time { font: 12px var(--font-mono); color: var(--color-muted-foreground); }
+
+  /* ===== Modal ===== */
+  .backdrop { position: fixed; inset: 0; background: rgba(2,6,23,.55); display: none; z-index: 30; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(4px); }
+  .backdrop.open { display: flex; }
+  .modal { width: min(600px, 100%); max-height: 92vh; overflow: auto; background: color-mix(in srgb, var(--color-card-solid) 88%, transparent); }
+  .modal-head { padding: var(--space-5) var(--space-5) var(--space-2); display: flex; gap: 12px; }
+  .modal-head h2 { margin: 0; font: 600 19px var(--font-mono); }
+  .modal-head p { margin: 4px 0 0; color: var(--color-muted-foreground); font-size: 14px; }
+  .form { padding: var(--space-3) var(--space-5); display: grid; gap: var(--space-4); }
+  .field > label, .field > .lbl { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .field .input, .field select { width: 100%; }
+  .hint { font-size: 12px; color: var(--color-muted-foreground); margin-top: 5px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+  .typepick { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-2); }
+  .typepick button {
+    display: grid; justify-items: center; gap: 6px; padding: 14px 6px; border-radius: 10px; font-size: 13px;
+    border: 1px solid var(--color-border); background: var(--color-muted); color: var(--color-muted-foreground);
+    transition: border-color .15s var(--ease), background .15s var(--ease), color .15s var(--ease);
+  }
+  .typepick button:hover { color: var(--color-foreground); border-color: var(--color-border-strong); }
+  .typepick button[aria-checked="true"] { border-color: var(--color-accent); color: var(--color-foreground); background: color-mix(in srgb, var(--color-accent) 12%, transparent); font-weight: 600; }
+  .typepick svg.i { width: 22px; height: 22px; }
+  .check { display: flex; align-items: center; gap: 10px; font-size: 14px; padding: 4px 0; cursor: pointer; }
+  .check input { width: 16px; height: 16px; accent-color: var(--color-accent); }
+  .modal-foot { padding: var(--space-4) var(--space-5) var(--space-5); display: flex; gap: var(--space-2); }
+
+  .note { padding: var(--space-3) var(--space-4); font-size: 13px; color: var(--color-muted-foreground); border-style: dashed; }
+  .note b { color: var(--color-foreground); }
+
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 50; padding: 10px 16px; font-size: 14px; display: flex; gap: 8px; align-items: center; background: var(--color-card-solid); }
+
+
+  [hidden] { display: none !important; }
+  .view { display: grid; gap: var(--space-4); }
+  .view > *, .fw-grid > *, .row2 > * { min-width: 0; }
+  th, td.num { white-space: nowrap; }
+  .strip { display: flex; flex-wrap: wrap; gap: var(--space-6); padding: var(--space-4) var(--space-5); }
+  .strip .item { display: grid; gap: 2px; }
+  .strip .item span { font-size: 12px; color: var(--color-muted-foreground); }
+  .strip .item b { font: 600 17px var(--font-mono); }
+  .strip .item small { font: 400 12px var(--font-body); color: var(--color-muted-foreground); }
+  .meter { display: inline-block; height: 6px; width: 80px; background: var(--color-muted); border-radius: 3px; overflow: hidden; }
+  .meter > i { display: block; height: 100%; background: var(--chart-line); border-radius: 3px; }
+  .meter.hot > i { background: var(--st-warn); }
+  .memcell { display: flex; align-items: center; gap: 10px; justify-content: flex-end; white-space: nowrap; }
+  .pcode { font: 12.5px var(--font-mono); background: var(--color-muted); border: 1px solid var(--color-border); padding: 1px 7px; border-radius: 6px; white-space: nowrap; display: inline-block; margin: 1px 0; }
+  tr.group td { background: color-mix(in srgb, var(--color-muted) 55%, transparent); font: 600 12px var(--font-mono); color: var(--color-muted-foreground); padding: 7px 14px; cursor: default; }
+  tr.group td svg { vertical-align: -3px; margin-right: 4px; }
+  .compact { min-width: 640px; }
+  .compact tbody tr { cursor: default; }
+  .compact tbody tr:hover { background: transparent; }
+
+  .switch { position: relative; width: 40px; height: 22px; flex: none; display: inline-block; }
+  .switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; z-index: 1; }
+  .switch span { position: absolute; inset: 0; border-radius: 999px; background: var(--color-secondary); transition: background .15s var(--ease); }
+  .switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s var(--ease); box-shadow: 0 1px 2px rgba(0,0,0,.3); }
+  .switch input:checked + span { background: var(--color-accent); }
+  .switch input:checked + span::after { transform: translateX(18px); }
+  .switch input:focus-visible + span { outline: 2px solid var(--color-ring); outline-offset: 2px; }
+
+  .banner { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: var(--radius); border: 1px solid; font-size: 14px; }
+  .banner .grow { flex: 1; }
+  .banner b { display: block; margin-bottom: 2px; }
+  .banner.info { border-color: color-mix(in srgb, var(--color-accent) 35%, transparent); background: color-mix(in srgb, var(--color-accent) 8%, transparent); }
+  .banner.off { border-color: var(--color-border); background: var(--color-card); }
+  .banner.warn { border-color: color-mix(in srgb, var(--st-warn) 45%, transparent); background: color-mix(in srgb, var(--st-warn) 10%, transparent); }
+  .banner.warn svg.i { color: var(--warn-text); }
+  .banner.info > svg.i { color: var(--st-good); }
+
+  .fw-grid { display: grid; grid-template-columns: 3fr 2fr; gap: var(--space-3); align-items: start; }
+  .addrow { display: grid; grid-template-columns: 1.3fr 1fr 1fr auto; gap: 10px; padding: var(--space-3) var(--space-4) var(--space-4); border-bottom: 1px solid var(--color-border); align-items: start; }
+  .addrow label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 5px; }
+  .addrow .input { width: 100%; }
+  .addrow .btn { margin-top: 23px; }
+  .hint.err { color: var(--crit-text); }
+  .input[aria-invalid="true"] { border-color: var(--st-crit); }
+  .scope { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--color-border); background: var(--color-muted); white-space: nowrap; }
+  .scope.net { color: var(--warn-text); border-color: color-mix(in srgb, var(--st-warn) 40%, transparent); }
+  .tag-new { font: 600 11px var(--font-mono); color: var(--color-on-accent); background: var(--color-accent); padding: 0 6px; border-radius: 4px; margin-left: 6px; vertical-align: 1px; }
+  .expo { list-style: none; margin: 0; padding: 6px 8px 10px; display: grid; }
+  .expo li { display: flex; align-items: center; gap: 12px; padding: 9px 8px; border-radius: var(--radius-sm); font-size: 14px; }
+  .expo li:hover { background: var(--color-muted); }
+  .expo .grow { flex: 1; min-width: 0; }
+  .expo .grow span { display: block; font-size: 12px; color: var(--color-muted-foreground); font-family: var(--font-mono); }
+  .seg.sm button { padding: 3px 9px; font-size: 12px; }
+  .card-note { margin: 4px 16px 0; font-size: 12px; color: var(--color-muted-foreground); }
+  .code { margin: 12px 16px 16px; background: var(--logs-bg); color: #CBD5E1; border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 12px 14px; font: 12.5px/1.75 var(--font-mono); white-space: pre; overflow: auto; }
+  .code .c { color: #64748B; } .code .k { color: #4ADE80; } .code .s { color: #FBBF24; }
+  .applybar { position: relative; display: flex; align-items: center; gap: 12px; padding: 12px 16px; flex-wrap: wrap; z-index: 5; background: color-mix(in srgb, var(--color-card-solid) 88%, transparent); }
+  .applybar.pending, .applybar.rollback { position: sticky; bottom: 12px; }
+  @media (max-width: 1500px) { .c-net { display: none; } }
+  .applybar.pending { border-color: color-mix(in srgb, var(--st-warn) 50%, transparent); }
+  .applybar.rollback { border-color: color-mix(in srgb, var(--chart-line) 60%, transparent); }
+  .applybar .count-big { font: 600 18px var(--font-mono); }
+  @media (max-width: 1200px) { .row2, .fw-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 1024px) {
+    .shell { grid-template-columns: 1fr; }
+    .side { position: static; height: auto; flex-direction: row; align-items: center; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--color-border); }
+    .side nav ul { display: flex; flex-wrap: wrap; } .hostcard { display: none; }
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 640px) {
+    main { padding: var(--space-3); }
+    .host-charts { grid-template-columns: 1fr; }
+    .search .input { width: 100%; } .search { flex: 1 1 100%; }
+    .typepick { grid-template-columns: repeat(2, 1fr); } .two { grid-template-columns: 1fr; }
+    .addrow { grid-template-columns: 1fr; } .addrow .btn { margin-top: 0; }
+    .strip { gap: var(--space-4); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-server" viewBox="0 0 24 24"><rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 6h.01M6 18h.01"/></symbol>
+    <symbol id="i-dash" viewBox="0 0 24 24"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8M16 17H8M10 9H8"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-cpu" viewBox="0 0 24 24"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></symbol>
+    <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/></symbol>
+    <symbol id="i-cog" viewBox="0 0 24 24"><path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"/><path d="M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/><path d="M12 2v2M12 22v-2M17 20.66l-1-1.73M11 10.27 7 3.34M20.66 17l-1.73-1M3.34 7l1.73 1M14 12h8M2 12h2M20.66 7l-1.73 1M3.34 17l1.73-1M17 3.34l-1 1.73M11 13.73l-4 6.93"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></symbol>
+    <symbol id="i-restart" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect width="14" height="14" x="5" y="5" rx="2"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></symbol>
+    <symbol id="i-plug" viewBox="0 0 24 24"><path d="M12 22v-5M9 8V2M15 8V2M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></symbol>
+    <symbol id="i-activity" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65M22 12.65l-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></symbol>
+    <symbol id="i-terminal" viewBox="0 0 24 24"><path d="m4 17 6-6-6-6M12 19h8"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+    <symbol id="i-hdd" viewBox="0 0 24 24"><path d="M22 12H2M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z"/><path d="M6 16h.01M10 16h.01"/></symbol>
+  </defs>
+</svg>
+
+<div class="shell">
+  <aside class="side">
+    <div class="brand">
+      <div class="logo"><svg class="i"><use href="#i-activity"/></svg></div>
+      <div><b>svc.watch</b><small>로컬 서비스 모니터</small></div>
+    </div>
+    <nav aria-label="주 메뉴">
+      <ul>
+        <li><a href="#dashboard" data-view="dashboard" aria-current="page"><svg class="i" aria-hidden="true"><use href="#i-dash"/></svg>대시보드</a></li>
+        <li><a href="#docker" data-view="docker"><svg class="i" aria-hidden="true"><use href="#i-box"/></svg>Docker<span class="count" style="background:var(--st-warn);color:#0F172A" aria-label="문제 있는 컨테이너 3개">3</span></a></li>
+        <li><a href="#firewall" data-view="firewall"><svg class="i" aria-hidden="true"><use href="#i-shield"/></svg>방화벽</a></li>
+        <li><a href="#"><svg class="i" aria-hidden="true"><use href="#i-bell"/></svg>알림<span class="count" aria-label="읽지 않은 알림 3개">3</span></a></li>
+        <li><a href="#"><svg class="i" aria-hidden="true"><use href="#i-file"/></svg>로그</a></li>
+        <li><a href="#"><svg class="i" aria-hidden="true"><use href="#i-gear"/></svg>설정</a></li>
+      </ul>
+    </nav>
+    <div class="hostcard glass">
+      <div style="display:flex;align-items:center;gap:8px;font-weight:600"><svg class="i sm" aria-hidden="true"><use href="#i-server"/></svg><span class="mono">DESKTOP-WORK01</span></div>
+      <div class="row"><span>OS</span><span>Windows 10 Pro</span></div>
+      <div class="row"><span>가동</span><span class="mono">3d 4h 12m</span></div>
+      <div class="row"><span>코어 / RAM</span><span class="mono">8C · 16GB</span></div>
+      <span class="agent"><svg width="8" height="8" aria-hidden="true"><circle cx="4" cy="4" r="4" fill="currentColor"/></svg>에이전트 연결됨 · v0.1.0</span>
+    </div>
+  </aside>
+
+  <main>
+    <div class="topbar">
+      <div>
+        <h1 id="pageTitle">서비스 현황</h1>
+        <p id="pageSub">이 컴퓨터에 등록한 서비스의 상태를 실시간으로 확인합니다.</p>
+      </div>
+      <div class="spacer"></div>
+      <span class="live" id="live" role="status" aria-live="polite"><span class="dot" aria-hidden="true"></span><span id="liveText">LIVE</span></span>
+      <button class="btn" id="pauseBtn" aria-pressed="false"><svg class="i sm" aria-hidden="true"><use href="#i-pause"/></svg><span>일시정지</span></button>
+      <button class="btn icon" id="themeBtn" aria-label="라이트 모드로 전환"><svg class="i" aria-hidden="true"><use href="#i-sun"/></svg></button>
+      <button class="btn accent" id="addBtn"><svg class="i sm" aria-hidden="true"><use href="#i-plus"/></svg>서비스 등록</button>
+    </div>
+
+    <div class="view" id="view-dashboard">
+    <section class="kpis" id="kpis" aria-label="요약"></section>
+
+    <section class="row2">
+      <div class="glass">
+        <div class="card-head"><svg class="i sm" aria-hidden="true"><use href="#i-cpu"/></svg><h2>호스트 리소스</h2><span class="muted">· 최근 5분 · 5초 간격</span></div>
+        <div class="host-charts">
+          <div><div class="metric-head"><span>CPU 사용률</span><b id="hostCpuNow">—</b></div><div id="hostCpu"></div></div>
+          <div><div class="metric-head"><span>메모리 사용률</span><b id="hostMemNow">—</b></div><div id="hostMem"></div></div>
+        </div>
+      </div>
+      <div class="glass">
+        <div class="card-head"><svg class="i sm" aria-hidden="true"><use href="#i-bell"/></svg><h2>최근 알림</h2><span class="spacer"></span><a href="#" class="muted" style="font-size:12px">전체 보기</a></div>
+        <ul class="feed" id="feed"></ul>
+      </div>
+    </section>
+
+    <section class="glass">
+      <div class="toolbar">
+        <div class="search">
+          <svg class="i sm" aria-hidden="true"><use href="#i-search"/></svg>
+          <label class="sr-only" for="q">서비스 검색</label>
+          <input class="input" id="q" placeholder="이름, 포트, 경로 검색">
+        </div>
+        <div class="seg" id="statusSeg" role="group" aria-label="상태 필터"></div>
+        <div class="spacer"></div>
+        <label class="sr-only" for="typeSel">유형 필터</label>
+        <select class="input" id="typeSel">
+          <option value="">모든 유형</option>
+          <option>Windows 서비스</option>
+          <option>프로세스</option>
+          <option>Docker</option>
+          <option>HTTP 엔드포인트</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>상태</th><th>서비스</th><th>유형</th>
+              <th class="num">PID</th><th class="num">포트</th>
+              <th class="num">CPU · 30분</th><th class="num">메모리</th>
+              <th class="num">응답</th><th class="num">가동</th><th class="num"><span class="sr-only">작업</span></th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    </div>
+
+    <!-- ===== Docker view ===== -->
+    <div class="view" id="view-docker" hidden>
+      <section class="glass strip" id="dkStrip" aria-label="Docker 엔진 요약"></section>
+      <section class="glass">
+        <div class="toolbar">
+          <div class="search">
+            <svg class="i sm" aria-hidden="true"><use href="#i-search"/></svg>
+            <label class="sr-only" for="dq">컨테이너 검색</label>
+            <input class="input" id="dq" placeholder="이름, 이미지, 포트 검색">
+          </div>
+          <div class="seg" id="dkSeg" role="group" aria-label="컨테이너 상태 필터"></div>
+          <div class="spacer"></div>
+          <label class="check"><input type="checkbox" id="dkGroup" checked> Compose 프로젝트별로 묶기</label>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>상태</th><th>컨테이너</th><th>포트</th>
+                <th class="num">CPU · 30분</th><th class="num">메모리 / 한도</th><th class="num c-net">네트워크 ↓ / ↑</th>
+                <th class="num">재시작</th><th class="num">가동</th><th class="num"><span class="sr-only">작업</span></th>
+              </tr>
+            </thead>
+            <tbody id="dkRows"></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="row2">
+        <div class="glass">
+          <div class="card-head"><svg class="i sm" aria-hidden="true"><use href="#i-hdd"/></svg><h2>Docker 디스크 사용량</h2><span class="muted">· 총 12.7 GB</span><span class="spacer"></span><button class="btn sm" data-act><svg class="i sm" aria-hidden="true"><use href="#i-trash"/></svg>정리 (prune)</button></div>
+          <ul class="expo" id="dkDisk"></ul>
+        </div>
+        <div class="glass">
+          <div class="card-head"><svg class="i sm" aria-hidden="true"><use href="#i-activity"/></svg><h2>최근 Docker 이벤트</h2></div>
+          <ul class="feed" id="dkEvents"></ul>
+        </div>
+      </section>
+    </div>
+
+    <!-- ===== Firewall view ===== -->
+    <div class="view" id="view-firewall" hidden>
+      <section class="kpis" id="fwKpis" aria-label="방화벽 요약"></section>
+      <div id="fwWarn"></div>
+      <div id="fwModeBanner"></div>
+      <section class="fw-grid">
+        <div class="glass">
+          <div class="card-head"><svg class="i sm" aria-hidden="true"><use href="#i-shield"/></svg><h2>허용 IP 목록</h2><span class="muted">· 여기 있는 IP만 들어올 수 있어요</span></div>
+          <form class="addrow" id="fwAdd" novalidate>
+            <div>
+              <label for="fwIp">IP 또는 대역</label>
+              <input class="input mono" id="fwIp" placeholder="203.0.113.10 · 192.168.0.0/24" aria-describedby="fwIpMsg" autocomplete="off">
+              <div class="hint" id="fwIpMsg">IP 하나 또는 CIDR 대역</div>
+            </div>
+            <div>
+              <label for="fwName">이름</label>
+              <input class="input" id="fwName" placeholder="예: 집 PC" autocomplete="off">
+            </div>
+            <div>
+              <label for="fwPorts">허용 포트</label>
+              <select class="input" id="fwPorts"></select>
+            </div>
+            <button class="btn accent" type="submit"><svg class="i sm" aria-hidden="true"><use href="#i-plus"/></svg>추가</button>
+          </form>
+          <div class="table-wrap">
+            <table class="compact">
+              <thead><tr><th>사용</th><th>이름</th><th>IP / 대역</th><th>허용 포트</th><th>구분</th><th>만료</th><th><span class="sr-only">삭제</span></th></tr></thead>
+              <tbody id="fwRows"></tbody>
+            </table>
+          </div>
+        </div>
+        <div style="display:grid;gap:var(--space-3)">
+          <div class="glass">
+            <div class="card-head"><svg class="i sm" aria-hidden="true"><use href="#i-globe"/></svg><h2>서비스별 외부 노출</h2></div>
+            <p class="card-note"><b>로컬만</b>: 이 PC 안에서만 접속 · <b>허용 목록</b>: 위 IP에서 접속 가능</p>
+            <ul class="expo" id="fwExpo"></ul>
+          </div>
+          <div class="glass">
+            <div class="card-head"><svg class="i sm" aria-hidden="true"><use href="#i-ban"/></svg><h2>최근 차단된 접속</h2><span class="spacer"></span><span class="muted">오늘</span></div>
+            <ul class="feed" id="fwBlocked"></ul>
+          </div>
+        </div>
+      </section>
+      <section class="glass">
+        <div class="card-head"><svg class="i sm" aria-hidden="true"><use href="#i-alert"/></svg><h2>충돌하는 기존 허용 규칙</h2></div>
+        <p class="card-note">다른 프로그램이 만든 "모든 IP 허용" 규칙이 있으면, 기본 차단 정책이 있어도 그 규칙으로 인터넷 접속이 들어옵니다. 허용 목록 모드가 제대로 동작하려면 아래 규칙을 꺼야 합니다.</p>
+        <ul class="expo" id="fwConf"></ul>
+      </section>
+      <section class="glass">
+        <div class="card-head"><svg class="i sm" aria-hidden="true"><use href="#i-terminal"/></svg><h2>적용될 PowerShell 명령</h2><span class="muted">· 미리보기 (관리자 권한으로 실행됨)</span><span class="spacer"></span><button class="btn sm" id="fwCopy"><svg class="i sm" aria-hidden="true"><use href="#i-copy"/></svg>복사</button></div>
+        <pre class="code" id="fwCode" tabindex="0" aria-label="적용될 PowerShell 명령"></pre>
+      </section>
+      <div class="applybar glass" id="applyBar" role="status" aria-live="polite"></div>
+    </div>
+
+    <div class="note glass">
+      <b>목업 v2</b> — <span class="mono">ui-ux-pro-max</span> 디자인 시스템 적용 (Real-Time Ops 패턴 · Glassmorphism · Dark tech + status green · Fira Code/Fira Sans).
+      모든 데이터는 가짜입니다. 왼쪽 메뉴에서 <b>대시보드 · Docker · 방화벽</b> 화면을 전환할 수 있어요. 행 클릭 → 상세 패널.
+    </div>
+  </main>
+</div>
+
+<!-- Detail drawer -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer glass" id="drawer" aria-hidden="true" aria-labelledby="dName" role="dialog">
+  <div class="drawer-head">
+    <div style="flex:1;min-width:0">
+      <div id="dStatus"></div>
+      <h2 id="dName">—</h2>
+      <div class="meta" id="dDesc"></div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn sm" data-act><svg class="i sm" aria-hidden="true"><use href="#i-restart"/></svg>재시작</button>
+      <button class="btn sm danger" data-act><svg class="i sm" aria-hidden="true"><use href="#i-stop"/></svg>중지</button>
+      <button class="btn sm icon" id="closeDrawer" aria-label="상세 패널 닫기"><svg class="i sm" aria-hidden="true"><use href="#i-x"/></svg></button>
+    </div>
+  </div>
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="overview" aria-selected="true">개요</button>
+    <button class="tab" role="tab" data-tab="logs" aria-selected="false">로그</button>
+    <button class="tab" role="tab" data-tab="events" aria-selected="false">이벤트</button>
+    <button class="tab" role="tab" data-tab="settings" aria-selected="false">설정</button>
+  </div>
+  <div class="drawer-body" id="dBody" role="tabpanel"></div>
+</aside>
+
+<!-- Register modal -->
+<div class="backdrop" id="modal">
+  <div class="modal glass" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <div class="modal-head">
+      <div style="flex:1">
+        <h2 id="mTitle">서비스 등록</h2>
+        <p>이 컴퓨터에서 모니터링할 대상을 추가합니다.</p>
+      </div>
+      <button class="btn sm icon" id="xModal" aria-label="닫기"><svg class="i sm" aria-hidden="true"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="form">
+      <div class="field">
+        <span class="lbl" id="typeLbl">유형</span>
+        <div class="typepick" id="typePick" role="radiogroup" aria-labelledby="typeLbl">
+          <button role="radio" aria-checked="true" data-t="svc"><svg class="i" aria-hidden="true"><use href="#i-cog"/></svg>Windows 서비스</button>
+          <button role="radio" aria-checked="false" data-t="proc"><svg class="i" aria-hidden="true"><use href="#i-cpu"/></svg>프로세스</button>
+          <button role="radio" aria-checked="false" data-t="docker"><svg class="i" aria-hidden="true"><use href="#i-box"/></svg>Docker</button>
+          <button role="radio" aria-checked="false" data-t="http"><svg class="i" aria-hidden="true"><use href="#i-globe"/></svg>HTTP</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="fName">표시 이름</label>
+        <input class="input" id="fName" placeholder="예: 사내 API 서버">
+      </div>
+      <div class="field">
+        <label for="targetInput" id="targetLabel">서비스 이름</label>
+        <input class="input mono" id="targetInput" placeholder="MSSQLSERVER">
+        <div class="hint" id="targetHint">services.msc에 표시되는 서비스 이름. 실행 중인 서비스 목록에서 고를 수도 있습니다.</div>
+      </div>
+      <div class="two">
+        <div class="field">
+          <label for="fHc">헬스체크</label>
+          <select class="input" id="fHc"><option>프로세스 생존 여부</option><option>TCP 포트 열림</option><option>HTTP 200 응답</option></select>
+        </div>
+        <div class="field">
+          <label for="fInt">확인 주기</label>
+          <select class="input" id="fInt"><option>5초</option><option selected>10초</option><option>30초</option><option>1분</option></select>
+        </div>
+      </div>
+      <div class="two">
+        <div class="field"><label for="fPort">포트 <span class="muted" style="font-weight:400">(선택)</span></label><input class="input mono" id="fPort" placeholder="8080" inputmode="numeric"></div>
+        <div class="field"><label for="fTag">그룹 / 태그</label><input class="input" id="fTag" placeholder="backend, db"></div>
+      </div>
+      <fieldset class="field" style="border:0;padding:0;margin:0">
+        <legend class="lbl" style="font-size:13px;font-weight:600;margin-bottom:4px">알림 & 자동 복구</legend>
+        <label class="check"><input type="checkbox" checked> 중지되면 데스크톱 알림</label>
+        <label class="check"><input type="checkbox"> 중지되면 자동 재시작 (최대 3회)</label>
+        <label class="check"><input type="checkbox" checked> CPU 80% 이상 5분 지속 시 경고</label>
+      </fieldset>
+    </div>
+    <div class="modal-foot">
+      <button class="btn"><svg class="i sm" aria-hidden="true"><use href="#i-plug"/></svg>연결 테스트</button>
+      <div class="spacer"></div>
+      <button class="btn" id="cancelModal">취소</button>
+      <button class="btn accent" id="saveModal">등록</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- Icons & status ---------- */
+const ic = (id, cls = 'i sm') => `<svg class="${cls}" aria-hidden="true"><use href="#i-${id}"/></svg>`;
+const STATUS = {
+  running: { label: '실행 중',  color: 'var(--st-good)' },
+  warning: { label: '경고',     color: 'var(--st-warn)' },
+  down:    { label: '응답 없음', color: 'var(--st-crit)' },
+  stopped: { label: '중지됨',   color: 'var(--st-off)' },
+};
+const SICON = {
+  running: '<circle cx="7" cy="7" r="6" fill="currentColor"/><path d="M4 7.2l2 2 4-4.2" stroke="#0F172A" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+  warning: '<path d="M7 1.2 13.2 12.4H.8Z" fill="currentColor"/><rect x="6.3" y="5" width="1.4" height="4" fill="#0F172A"/><rect x="6.3" y="10" width="1.4" height="1.4" fill="#0F172A"/>',
+  down:    '<circle cx="7" cy="7" r="6" fill="currentColor"/><path d="M4.6 4.6l4.8 4.8M9.4 4.6l-4.8 4.8" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/>',
+  stopped: '<circle cx="7" cy="7" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="4.8" y="4.8" width="4.4" height="4.4" rx="1" fill="currentColor"/>',
+};
+const sIcon = s => `<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" style="color:${STATUS[s].color}">${SICON[s]}</svg>`;
+const badge = s => `<span class="status pill ${s}">${sIcon(s)}${STATUS[s].label}</span>`;
+const TYPE_ICON = { 'Windows 서비스': 'cog', '프로세스': 'cpu', 'Docker': 'box', 'HTTP 엔드포인트': 'globe' };
+
+/* ---------- Mock data ---------- */
+function series(base, jitter, n = 30, lo = 0, hi = 100) {
+  let v = base; const out = [];
+  for (let i = 0; i < n; i++) { v = Math.max(lo, Math.min(hi, v + (Math.random() - .5) * jitter)); out.push(+v.toFixed(1)); }
+  return out;
+}
+const services = [
+  { id: 1, name: 'Nginx 리버스 프록시', desc: 'C:\\nginx\\nginx.exe', type: 'Windows 서비스', status: 'running', pid: 4120, port: '80, 443', cpu: series(3, 3), mem: 48, memMax: 512, latency: 4, uptime: '3d 4h' },
+  { id: 2, name: '사내 API 서버', desc: 'node dist/server.js', type: '프로세스', status: 'running', pid: 9832, port: '8080', cpu: series(22, 10), mem: 412, memMax: 1024, latency: 38, uptime: '1d 2h' },
+  { id: 3, name: 'PostgreSQL 16', desc: 'postgresql-x64-16', type: 'Windows 서비스', status: 'running', pid: 2216, port: '5432', cpu: series(9, 6), mem: 880, memMax: 2048, latency: 2, uptime: '3d 4h' },
+  { id: 4, name: 'Redis', desc: 'redis:7-alpine', type: 'Docker', status: 'running', pid: 7310, port: '6379', cpu: series(2, 2), mem: 36, memMax: 256, latency: 1, uptime: '3d 3h' },
+  { id: 5, name: '배치 스케줄러', desc: 'python -m scheduler', type: '프로세스', status: 'warning', pid: 11204, port: '—', cpu: series(84, 8, 30, 70, 98), mem: 1620, memMax: 2048, latency: null, uptime: '6h 12m', alert: 'CPU 80% 이상 7분 지속' },
+  { id: 6, name: '프론트엔드 개발서버', desc: 'vite --port 5173', type: '프로세스', status: 'running', pid: 15520, port: '5173', cpu: series(5, 6), mem: 210, memMax: 1024, latency: 12, uptime: '2h 40m' },
+  { id: 7, name: '외부 결제 API', desc: 'https://pay.example.com/health', type: 'HTTP 엔드포인트', status: 'warning', pid: null, port: '443', cpu: null, mem: null, latency: 1840, uptime: '—', alert: '응답시간 1.8s (기준 1s)' },
+  { id: 8, name: 'Elasticsearch', desc: 'elasticsearch:8.15', type: 'Docker', status: 'down', pid: null, port: '9200', cpu: null, mem: null, memMax: 4096, latency: null, uptime: '—', alert: '컨테이너 종료 · exit 137 (OOM)' },
+  { id: 9, name: 'Jenkins 에이전트', desc: 'jenkins-agent', type: 'Windows 서비스', status: 'stopped', pid: null, port: '—', cpu: null, mem: null, latency: null, uptime: '—' },
+  { id: 10, name: 'RabbitMQ', desc: 'rabbitmq:3-management', type: 'Docker', status: 'running', pid: 7488, port: '5672, 15672', cpu: series(4, 3), mem: 140, memMax: 512, latency: 6, uptime: '3d 3h' },
+];
+const host = { cpu: series(32, 8, 60, 10, 70), mem: series(68, 2, 60, 60, 75) };
+const feed = [
+  ['down', 'Elasticsearch 응답 없음', '컨테이너가 OOM으로 종료됨', '09:38'],
+  ['warning', '배치 스케줄러 CPU 경고', '84% · 7분 지속', '09:34'],
+  ['warning', '외부 결제 API 지연', '응답 1.8s', '09:21'],
+  ['running', '사내 API 서버 복구', '자동 재시작 1/3 성공', '08:02'],
+];
+
+let state = { q: '', status: '', type: '', selected: null, paused: false, lastUpdate: new Date() };
+
+/* ---------- Helpers ---------- */
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const last = a => a ? a[a.length - 1] : null;
+const fmtMem = mb => mb == null ? '—' : mb >= 1024 ? (mb / 1024).toFixed(1) + ' GB' : Math.round(mb) + ' MB';
+const fmtLat = ms => ms == null ? '—' : ms >= 1000 ? (ms / 1000).toFixed(1) + ' s' : ms + ' ms';
+const hhmmss = d => d.toTimeString().slice(0, 8);
+
+function sparkline(data, threshold = 80, w = 84, h = 24) {
+  if (!data) return '<span class="muted">—</span>';
+  const step = w / (data.length - 1), y = v => h - 2 - (v / 100) * (h - 4);
+  const pts = data.map((v, i) => `${(i * step).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const hot = last(data) >= threshold;
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">
+    <polygon points="0,${h - 2} ${pts} ${w},${h - 2}" fill="var(--chart-fill)"/>
+    <polyline points="${pts}" fill="none" stroke="${hot ? 'var(--st-warn)' : 'var(--chart-line)'}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+  </svg>`;
+}
+
+/* ---------- Area chart (single axis, threshold + anomaly markers, hover & keyboard) ---------- */
+const charts = {};
+function areaChart(el, data, o) {
+  const { max = 100, unit = '%', threshold = null, W = 520, H = 160, step = '분', label } = o;
+  const P = { l: 40, r: 10, t: 10, b: 22 }, iw = W - P.l - P.r, ih = H - P.t - P.b;
+  const x = i => P.l + (i / (data.length - 1)) * iw, y = v => P.t + ih - (v / max) * ih;
+  const fmt = v => unit === 'MB' ? fmtMem(v) : v.toFixed(1) + unit;
+  const tick = t => unit === 'MB' ? fmtMem(t) : t + unit;
+  const pts = data.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const above = threshold == null ? [] : data.map((v, i) => [v, i]).filter(([v]) => v >= threshold);
+  const ago = i => { const n = data.length - 1 - i; return n === 0 ? '지금' : step === '초' ? `${n * 5}초 전` : `${n}${step} 전`; };
+  const xlabels = step === '초' ? ['5분 전', '2분 30초 전', '지금'] : [`${data.length - 1}분 전`, `${Math.round((data.length - 1) / 2)}분 전`, '지금'];
+
+  el.innerHTML = `
+    <div class="chart" tabindex="0" role="img" aria-label="${label}. 현재 ${fmt(last(data))}${above.length ? `, 기준 초과 ${above.length}회` : ''}. 좌우 화살표로 값 탐색">
+      <svg viewBox="0 0 ${W} ${H}">
+        ${[0, max / 2, max].map(t => `<line x1="${P.l}" x2="${P.l + iw}" y1="${y(t)}" y2="${y(t)}" stroke="${t === 0 ? 'var(--chart-axis)' : 'var(--chart-grid)'}"/>
+          <text x="${P.l - 8}" y="${y(t) + 4}" text-anchor="end" font-size="11" font-family="Fira Code, monospace" fill="var(--color-muted-foreground)">${tick(t)}</text>`).join('')}
+        ${xlabels.map((t, k) => `<text x="${P.l + iw * k / 2}" y="${H - 4}" font-size="11" font-family="Fira Code, monospace" fill="var(--color-muted-foreground)" text-anchor="${['start', 'middle', 'end'][k]}">${t}</text>`).join('')}
+        <polygon points="${P.l},${P.t + ih} ${pts} ${P.l + iw},${P.t + ih}" fill="var(--chart-fill)"/>
+        <polyline points="${pts}" fill="none" stroke="var(--chart-line)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+        ${threshold != null ? `<line x1="${P.l}" x2="${P.l + iw}" y1="${y(threshold)}" y2="${y(threshold)}" stroke="var(--st-warn)" stroke-dasharray="4 4" stroke-width="1.2"/>
+          <text x="${P.l + 6}" y="${y(threshold) + 15}" text-anchor="start" font-size="11" font-family="Fira Code, monospace" fill="var(--warn-text)">경고 기준 ${tick(threshold)}</text>` : ''}
+        ${above.map(([v, i]) => `<rect x="${x(i) - 4}" y="${y(v) - 4}" width="8" height="8" transform="rotate(45 ${x(i)} ${y(v)})" fill="var(--st-warn)" stroke="var(--color-card-solid)" stroke-width="1.5"/>`).join('')}
+        <line class="xh" y1="${P.t}" y2="${P.t + ih}" stroke="var(--color-muted-foreground)" stroke-dasharray="3 3" opacity="0"/>
+        <circle class="dot" r="4.5" fill="var(--chart-line)" stroke="var(--color-card-solid)" stroke-width="2" opacity="0"/>
+        <rect class="hit" x="${P.l}" y="0" width="${iw}" height="${H}" fill="transparent"/>
+      </svg>
+      <div class="tip"></div>
+    </div>
+    ${threshold != null ? `<div class="legend"><span><svg width="14" height="3" aria-hidden="true"><rect width="14" height="3" rx="1.5" fill="var(--chart-line)"/></svg>${label}</span><span><svg width="16" height="3" aria-hidden="true"><path d="M0 1.5h5M8 1.5h5" stroke="var(--st-warn)" stroke-width="2"/></svg>경고 기준</span><span><svg width="10" height="10" aria-hidden="true"><rect x="2" y="2" width="6" height="6" transform="rotate(45 5 5)" fill="var(--st-warn)"/></svg>기준 초과</span></div>` : ''}`;
+
+  const root = el.querySelector('.chart'), svg = root.querySelector('svg'), xh = root.querySelector('.xh'),
+        dot = root.querySelector('.dot'), tip = root.querySelector('.tip');
+  let idx = data.length - 1;
+  const show = i => {
+    idx = i; const r = svg.getBoundingClientRect(), px = x(i), py = y(data[i]);
+    xh.setAttribute('x1', px); xh.setAttribute('x2', px); xh.setAttribute('opacity', 1);
+    dot.setAttribute('cx', px); dot.setAttribute('cy', py); dot.setAttribute('opacity', 1);
+    tip.style.left = (px / W * r.width) + 'px'; tip.style.top = (py / H * r.height) + 'px';
+    tip.innerHTML = `<span class="muted">${ago(i)}</span> · <b>${fmt(data[i])}</b>${threshold != null && data[i] >= threshold ? ' · 기준 초과' : ''}`;
+    tip.style.opacity = 1;
+  };
+  const hide = () => { xh.setAttribute('opacity', 0); dot.setAttribute('opacity', 0); tip.style.opacity = 0; };
+  root.querySelector('.hit').onmousemove = e => {
+    const r = svg.getBoundingClientRect(), sx = (e.clientX - r.left) * (W / r.width);
+    show(Math.max(0, Math.min(data.length - 1, Math.round((sx - P.l) / iw * (data.length - 1)))));
+  };
+  root.onmouseleave = hide; root.onblur = hide; root.onfocus = () => show(idx);
+  root.onkeydown = e => {
+    if (e.key === 'ArrowLeft') { show(Math.max(0, idx - 1)); e.preventDefault(); }
+    if (e.key === 'ArrowRight') { show(Math.min(data.length - 1, idx + 1)); e.preventDefault(); }
+  };
+}
+
+/* ---------- Render: KPIs ---------- */
+function renderKpis() {
+  const c = s => services.filter(x => x.status === s).length;
+  const t = (st, label, value, sub, bar) => `<div class="tile glass" style="--bar:${bar}"><div class="label">${st ? sIcon(st) : ic('layers')}${label}</div><div class="value">${value}</div><div class="sub">${sub}</div></div>`;
+  $('#kpis').innerHTML =
+    t(null, '등록된 서비스', services.length, '4개 유형 · 3개 그룹', 'var(--chart-line)') +
+    t('running', '실행 중', c('running'), '모든 헬스체크 통과', 'var(--st-good)') +
+    t('warning', '경고', c('warning'), '임계값 초과', 'var(--st-warn)') +
+    t('down', '응답 없음 · 중지', c('down') + c('stopped'), `응답 없음 ${c('down')} · 중지 ${c('stopped')}`, 'var(--st-crit)');
+}
+
+/* ---------- Render: host charts & feed ---------- */
+function renderHost() {
+  $('#hostCpuNow').textContent = last(host.cpu).toFixed(0) + '%';
+  $('#hostMemNow').textContent = last(host.mem).toFixed(0) + '% · ' + (last(host.mem) / 100 * 16).toFixed(1) + ' GB';
+  areaChart($('#hostCpu'), host.cpu, { label: '호스트 CPU', W: 420, H: 180, step: '초' });
+  areaChart($('#hostMem'), host.mem, { label: '호스트 메모리', W: 420, H: 180, step: '초' });
+}
+function renderFeed() {
+  $('#feed').innerHTML = feed.map(([s, t, d, tm]) => `<li>${sIcon(s)}<div><b>${t}</b><span class="muted">${d}</span></div><time>${tm}</time></li>`).join('');
+}
+
+/* ---------- Render: filters ---------- */
+function renderSeg() {
+  const opts = [['', '전체'], ['running', '실행 중'], ['warning', '경고'], ['down', '응답 없음'], ['stopped', '중지']];
+  $('#statusSeg').innerHTML = opts.map(([k, l]) => {
+    const n = k ? services.filter(s => s.status === k).length : services.length;
+    return `<button aria-pressed="${state.status === k}" data-k="${k}">${l}<span class="n">${n}</span></button>`;
+  }).join('');
+  $$('#statusSeg button').forEach(b => b.onclick = () => { state.status = b.dataset.k; renderSeg(); renderRows(); });
+}
+
+/* ---------- Render: table ---------- */
+function renderRows() {
+  const q = state.q.toLowerCase(), order = { down: 0, warning: 1, running: 2, stopped: 3 };
+  const list = services
+    .filter(s => (!state.status || s.status === state.status) && (!state.type || s.type === state.type))
+    .filter(s => !q || (s.name + s.desc + s.port).toLowerCase().includes(q))
+    .sort((a, b) => order[a.status] - order[b.status]);
+
+  $('#rows').innerHTML = list.map(s => `
+    <tr data-id="${s.id}" tabindex="0" aria-selected="${state.selected === s.id}">
+      <td>${badge(s.status)}</td>
+      <td><div class="svc"><span class="ico">${ic(TYPE_ICON[s.type])}</span><div><b>${s.name}</b>${s.alert ? `<span class="alert ${s.status === 'down' ? 'crit' : ''}">${s.alert}</span>` : `<span>${s.desc}</span>`}</div></div></td>
+      <td><span class="muted" style="font-size:13px">${s.type}</span></td>
+      <td class="num">${s.pid ?? '—'}</td>
+      <td class="num">${s.port}</td>
+      <td class="num"><div class="spark">${sparkline(s.cpu)}<span style="min-width:40px">${s.cpu ? last(s.cpu).toFixed(0) + '%' : '—'}</span></div></td>
+      <td class="num">${fmtMem(s.mem)}</td>
+      <td class="num" style="${s.latency >= 1000 ? 'color:var(--warn-text)' : ''}">${fmtLat(s.latency)}</td>
+      <td class="num">${s.uptime}</td>
+      <td><div class="actions">
+        ${s.status === 'stopped' || s.status === 'down'
+          ? `<button class="btn sm" data-act aria-label="${s.name} 시작">${ic('play')}시작</button>`
+          : `<button class="btn sm icon" data-act aria-label="${s.name} 재시작" title="재시작">${ic('restart')}</button><button class="btn sm icon danger" data-act aria-label="${s.name} 중지" title="중지">${ic('stop')}</button>`}
+      </div></td>
+    </tr>`).join('') || `<tr><td colspan="10" class="muted" style="text-align:center;padding:36px">조건에 맞는 서비스가 없습니다.</td></tr>`;
+
+  $$('#rows tr[data-id]').forEach(tr => {
+    tr.onclick = e => { if (e.target.closest('[data-act]')) return; openDrawer(+tr.dataset.id); };
+    tr.onkeydown = e => { if (e.key === 'Enter' && !e.target.closest('[data-act]')) openDrawer(+tr.dataset.id); };
+  });
+}
+
+/* ---------- Drawer ---------- */
+let currentTab = 'overview', lastFocus = null;
+function openDrawer(id) {
+  lastFocus = document.activeElement;
+  state.selected = id; renderRows();
+  const s = services.find(x => x.id === id);
+  $('#dStatus').innerHTML = badge(s.status);
+  $('#dName').textContent = s.name;
+  $('#dDesc').textContent = `${s.type} · ${s.desc}`;
+  $('.tabs').hidden = false;
+  $('#drawer').classList.add('open'); $('#scrim').classList.add('open');
+  $('#drawer').setAttribute('aria-hidden', 'false');
+  renderTab(s);
+  $('#closeDrawer').focus();
+}
+function closeDrawer() {
+  $('#drawer').classList.remove('open'); $('#scrim').classList.remove('open');
+  $('#drawer').setAttribute('aria-hidden', 'true');
+  state.selected = null; renderRows();
+  if (lastFocus) lastFocus.focus?.();
+}
+function renderTab(s) {
+  $$('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.tab === currentTab));
+  const body = $('#dBody');
+  if (currentTab === 'overview') {
+    const memSeries = s.mem != null ? series(s.mem, s.memMax * 0.04, 30, 0, s.memMax) : null;
+    body.innerHTML = `
+      ${s.alert ? `<div class="callout ${s.status}">${sIcon(s.status)}<div><b>${STATUS[s.status].label}</b> · ${s.alert}</div></div>` : ''}
+      <dl class="kv">
+        <dt>대상</dt><dd><code>${s.desc}</code></dd>
+        <dt>PID</dt><dd class="mono">${s.pid ?? '—'}</dd>
+        <dt>포트</dt><dd class="mono">${s.port}</dd>
+        <dt>가동시간</dt><dd class="mono">${s.uptime}</dd>
+        <dt>헬스체크</dt><dd>${s.type === 'HTTP 엔드포인트' ? 'HTTP 200 응답 · 10초' : '프로세스 생존 + TCP 포트 · 10초'}</dd>
+        <dt>자동 재시작</dt><dd>${s.id % 2 ? '켜짐 (최대 3회)' : '꺼짐'}</dd>
+      </dl>
+      ${s.cpu ? `<div><h3>CPU 사용률 · 최근 30분 <b class="mono">${last(s.cpu).toFixed(1)}%</b></h3><div id="cCpu"></div></div>` : `<div class="muted" style="font-size:14px">이 대상은 CPU 지표를 수집하지 않습니다.</div>`}
+      ${memSeries ? `<div><h3>메모리 · 한도 ${fmtMem(s.memMax)} <b class="mono">${fmtMem(last(memSeries))}</b></h3><div id="cMem"></div></div>` : ''}
+      <div><h3>가용성 · 최근 24시간</h3>${uptimeBar(s)}</div>`;
+    if (s.cpu) areaChart($('#cCpu'), s.cpu, { label: 'CPU 사용률', threshold: 80 });
+    if (memSeries) areaChart($('#cMem'), memSeries, { label: '메모리', unit: 'MB', max: s.memMax });
+  } else if (currentTab === 'logs') {
+    body.innerHTML = `
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div class="search" style="flex:1"><svg class="i sm" aria-hidden="true"><use href="#i-search"/></svg><input class="input" style="width:100%" placeholder="로그 검색" aria-label="로그 검색"></div>
+        <button class="btn sm">${ic('download')}다운로드</button>
+        <label class="check"><input type="checkbox" checked> 자동 스크롤</label>
+      </div>
+      <div class="logs" tabindex="0" aria-label="최근 로그">${fakeLogs()}</div>`;
+  } else if (currentTab === 'events') {
+    const ev = [
+      ['running', '헬스체크 정상 복구', '09:41'],
+      ['warning', s.alert || '응답시간 일시 증가 (820ms)', '09:12'],
+      ['stopped', '사용자가 재시작함 (DESKTOP-WORK01\\user)', '08:55'],
+      ['down', '비정상 종료 감지 → 자동 재시작 1/3', '03:20'],
+      ['running', '서비스 등록됨', '11/01'],
+    ];
+    body.innerHTML = `<ul class="events">${ev.map(([st, t, tm]) => `<li>${sIcon(st)}<span>${t}</span><time>${tm}</time></li>`).join('')}</ul>`;
+  } else {
+    body.innerHTML = `
+      <div class="form" style="padding:0">
+        <div class="field"><label for="sName">표시 이름</label><input class="input" id="sName" value="${s.name}"></div>
+        <div class="two">
+          <div class="field"><label for="sInt">확인 주기</label><select class="input" id="sInt"><option>10초</option><option>30초</option></select></div>
+          <div class="field"><label for="sCpu">CPU 경고 기준</label><input class="input mono" id="sCpu" value="80%"></div>
+        </div>
+        <fieldset class="field" style="border:0;padding:0;margin:0"><legend class="lbl" style="font-size:13px;font-weight:600">알림 채널</legend>
+          <label class="check"><input type="checkbox" checked> 데스크톱 알림</label>
+          <label class="check"><input type="checkbox"> Slack 웹훅</label>
+        </fieldset>
+        <div style="display:flex;gap:8px"><button class="btn danger">${ic('trash')}등록 해제</button><div class="spacer"></div><button class="btn accent">저장</button></div>
+      </div>`;
+  }
+}
+function uptimeBar(s) {
+  const n = 48, w = 520, gap = 2, bw = (w - gap * (n - 1)) / n;
+  let bars = '';
+  for (let i = 0; i < n; i++) {
+    let st = 'running';
+    if (s.status === 'stopped') st = i > 30 ? 'stopped' : 'running';
+    else if (s.status === 'down') st = i > 44 ? 'down' : (i === 12 ? 'warning' : 'running');
+    else if (s.status === 'warning') st = i > 40 || i === 20 ? 'warning' : 'running';
+    else if (i === 7) st = 'warning';
+    const col = st === 'running' ? 'color-mix(in srgb, var(--st-good) 75%, transparent)' : STATUS[st].color;
+    bars += `<rect x="${i * (bw + gap)}" y="0" width="${bw}" height="26" rx="3" fill="${col}"><title>${24 - Math.floor(i / 2)}시간 전 · ${STATUS[st].label}</title></rect>`;
+  }
+  const pct = s.status === 'stopped' ? '—' : s.status === 'down' ? '93.8%' : s.status === 'warning' ? '99.2%' : '99.9%';
+  return `<svg viewBox="0 0 ${w} 26" style="width:100%;display:block" role="img" aria-label="최근 24시간 가용률 ${pct}">${bars}</svg>
+    <div style="display:flex;justify-content:space-between;font:12px var(--font-mono);color:var(--color-muted-foreground);margin-top:6px"><span>24h 전</span><span>가동률 <b style="color:var(--color-foreground)">${pct}</b></span><span>지금</span></div>`;
+}
+function fakeLogs() {
+  const L = [['ok', 'INFO ', 'Health check OK (12ms)'], ['t', 'INFO ', 'GET /api/users 200 34ms'], ['w', 'WARN ', 'Slow query detected: 812ms'],
+             ['t', 'INFO ', 'GET /api/orders 200 41ms'], ['e', 'ERROR', 'Connection reset by peer (retry 1/3)'], ['t', 'INFO ', 'Reconnected to upstream'],
+             ['t', 'INFO ', 'POST /api/login 200 88ms'], ['ok', 'INFO ', 'Health check OK (9ms)']];
+  return L.map(([c, lv, m], i) => `<span class="t">09:${30 + i}:1${i}</span> <span class="${c}">${lv}</span> ${m}`).join('\n');
+}
+
+/* ---------- Modal ---------- */
+const TYPE_HINTS = {
+  svc:    ['서비스 이름', 'MSSQLSERVER', 'services.msc에 표시되는 서비스 이름. 실행 중인 서비스 목록에서 고를 수도 있습니다.'],
+  proc:   ['실행 명령 또는 프로세스 이름', 'node.exe dist/server.js', '명령줄 일부가 일치하는 프로세스를 추적합니다.'],
+  docker: ['컨테이너 이름', 'redis', 'docker ps에 표시되는 컨테이너 이름 또는 ID.'],
+  http:   ['헬스체크 URL', 'http://localhost:8080/health', '지정한 URL에 주기적으로 요청해 응답 코드와 시간을 기록합니다.'],
+};
+$$('#typePick button').forEach(b => b.onclick = () => {
+  $$('#typePick button').forEach(x => x.setAttribute('aria-checked', x === b));
+  const [l, p, h] = TYPE_HINTS[b.dataset.t];
+  $('#targetLabel').textContent = l; $('#targetInput').placeholder = p; $('#targetHint').textContent = h;
+});
+const openModal = () => { lastFocus = document.activeElement; $('#modal').classList.add('open'); $('#fName').focus(); };
+const closeModal = () => { $('#modal').classList.remove('open'); lastFocus?.focus?.(); };
+$('#addBtn').onclick = openModal;
+$('#cancelModal').onclick = closeModal; $('#xModal').onclick = closeModal;
+$('#saveModal').onclick = () => { closeModal(); toast('목업: 등록 요청이 전송됐다고 가정합니다'); };
+$('#modal').onclick = e => { if (e.target.id === 'modal') closeModal(); };
+
+/* ---------- Wiring ---------- */
+$('#closeDrawer').onclick = closeDrawer; $('#scrim').onclick = closeDrawer;
+$$('.tab').forEach(t => t.onclick = () => { currentTab = t.dataset.tab; renderTab(services.find(x => x.id === state.selected)); });
+$('#q').oninput = e => { state.q = e.target.value; renderRows(); };
+$('#typeSel').onchange = e => { state.type = e.target.value; renderRows(); };
+$('#themeBtn').onclick = () => {
+  const toLight = document.documentElement.dataset.theme === 'dark';
+  document.documentElement.dataset.theme = toLight ? 'light' : 'dark';
+  $('#themeBtn').innerHTML = ic(toLight ? 'moon' : 'sun', 'i');
+  $('#themeBtn').setAttribute('aria-label', toLight ? '다크 모드로 전환' : '라이트 모드로 전환');
+  renderHost(); if (state.selected && currentTab === 'overview') renderTab(services.find(x => x.id === state.selected));
+};
+function renderLive() {
+  $('#live').classList.toggle('paused', state.paused);
+  $('#liveText').textContent = (state.paused ? '일시정지 · 마지막 ' : 'LIVE · ') + hhmmss(state.lastUpdate);
+}
+$('#pauseBtn').onclick = () => {
+  state.paused = !state.paused;
+  $('#pauseBtn').setAttribute('aria-pressed', state.paused);
+  $('#pauseBtn').innerHTML = state.paused ? `${ic('play')}<span>재개</span>` : `${ic('pause')}<span>일시정지</span>`;
+  renderLive();
+};
+$$('[data-act]').forEach(b => b.addEventListener('click', () => toast('목업: 실제 제어는 백엔드 연동 후 구현')));
+document.addEventListener('click', e => { if (e.target.closest('#rows [data-act], #dkRows [data-act]')) toast('목업: 실제 제어는 백엔드 연동 후 구현'); });
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if ($('#modal').classList.contains('open')) closeModal();
+  else if ($('#drawer').classList.contains('open')) closeDrawer();
+});
+function toast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast glass'; t.setAttribute('role', 'status');
+  t.innerHTML = `${ic('activity')}${msg}`;
+  document.body.appendChild(t); setTimeout(() => t.remove(), 2200);
+}
+
+/* ---------- Simulated live updates (stop when paused or tab hidden) ---------- */
+setInterval(() => {
+  if (state.paused || document.hidden) return;
+  const nudge = (arr, j, lo = 0, hi = 100) => [...arr.slice(1), +Math.max(lo, Math.min(hi, last(arr) + (Math.random() - .5) * j)).toFixed(1)];
+  services.forEach(s => { if (s.cpu) s.cpu = nudge(s.cpu, s.status === 'warning' ? 8 : 5, s.status === 'warning' ? 70 : 0, s.status === 'warning' ? 98 : 100); });
+  host.cpu = nudge(host.cpu, 8, 10, 70); host.mem = nudge(host.mem, 1.5, 60, 75);
+  state.lastUpdate = new Date();
+  containers.forEach(c => { if (c.cpu) c.cpu = nudge(c.cpu, 4); });
+  renderKpis(); renderRows(); renderHost(); renderLive();
+  if (view === 'docker') renderDkRows();
+}, 5000);
+
+
+/* =====================================================================
+   Docker
+   ===================================================================== */
+const esc = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const containers = [
+  { id: 'c1', cid: '3f9a1c2b7d10', name: 'redis', image: 'redis:7-alpine', project: 'backend', state: 'running', health: 'healthy', ports: ['6379→6379'], cpu: series(2, 2), mem: 36, limit: 256, net: '1.2M / 3.4M', restarts: 0, up: '3d 3h', vol: 'redis-data' },
+  { id: 'c2', cid: '8b21e0aa4c55', name: 'rabbitmq', image: 'rabbitmq:3-management', project: 'backend', state: 'running', health: 'healthy', ports: ['5672→5672', '15672→15672'], cpu: series(4, 3), mem: 140, limit: 512, net: '22M / 18M', restarts: 0, up: '3d 3h', vol: 'rabbit-data' },
+  { id: 'c3', cid: '1d0c77f3e912', name: 'api-worker', image: 'myapp/worker:1.4.2', project: 'backend', state: 'restarting', health: null, ports: [], cpu: null, mem: null, limit: 512, net: '—', restarts: 5, up: '—', alert: '재시작 반복 5회 · 최근 exit 1',
+    logs: [['t', 'INFO ', 'Starting worker v1.4.2'], ['t', 'INFO ', 'Connecting to amqp://rabbitmq:5672'], ['e', 'ERROR', 'Missing env QUEUE_NAME'], ['e', 'ERROR', 'Process exited with code 1']] },
+  { id: 'c4', cid: '6e44ab90c3f1', name: 'elasticsearch', image: 'elasticsearch:8.15', project: 'search', state: 'exited', exit: 137, ports: ['9200→9200'], cpu: null, mem: null, limit: 4096, net: '—', restarts: 1, up: '—', alert: 'OOM으로 종료 · exit 137', vol: 'es-data',
+    logs: [['t', 'INFO ', 'heap size [2gb], compressed ordinary object pointers [true]'], ['w', 'WARN ', 'high disk watermark [90%] exceeded'], ['e', 'ERROR', 'java.lang.OutOfMemoryError: Java heap space'], ['e', 'ERROR', 'fatal error in thread [main], exiting']] },
+  { id: 'c5', cid: 'a07f5d21be88', name: 'kibana', image: 'kibana:8.15', project: 'search', state: 'running', health: 'unhealthy', ports: ['5601→5601'], cpu: series(6, 4), mem: 480, limit: 1024, net: '0.4M / 0.1M', restarts: 0, up: '1d 6h', alert: '헬스체크 실패 3회 · ES 연결 불가',
+    logs: [['t', 'INFO ', 'Kibana is starting'], ['e', 'ERROR', 'Unable to retrieve version information from Elasticsearch nodes. connect ECONNREFUSED'], ['w', 'WARN ', 'Health check failed (3/3)']] },
+  { id: 'c6', cid: 'c19b3e6f0a42', name: 'postgres-test', image: 'postgres:16', project: 'test', state: 'exited', exit: 0, ports: [], cpu: null, mem: null, limit: null, net: '—', restarts: 0, up: '—' },
+  { id: 'c7', cid: '5be2d8c4a913', name: 'portainer', image: 'portainer/portainer-ce:2.21', project: null, state: 'running', health: null, ports: ['9443→9443'], cpu: series(1, 1.5), mem: 62, limit: null, net: '3.1M / 9.8M', restarts: 0, up: '3d 4h', vol: 'portainer_data' },
+];
+const DK = c => c.state === 'running' ? (c.health === 'unhealthy' ? ['warning', 'unhealthy'] : ['running', c.health === 'healthy' ? 'healthy' : '실행 중'])
+  : c.state === 'restarting' ? ['warning', '재시작 중'] : c.exit ? ['down', `종료 · ${c.exit}`] : ['stopped', '중지됨'];
+const xbadge = (k, l) => `<span class="status pill ${k}">${sIcon(k)}${l}</span>`;
+let dk = { q: '', f: '', group: true };
+
+function renderDocker() { renderDkStrip(); renderDkSeg(); renderDkRows(); renderDkSide(); }
+function renderDkStrip() {
+  const n = k => containers.filter(c => DK(c)[0] === k).length;
+  $('#dkStrip').innerHTML = [
+    ['Docker 엔진', `<span style="color:var(--st-good)">${sIcon('running')}</span> 실행 중`],
+    ['버전', '27.3.1 <small>· Docker Desktop · WSL2</small>'],
+    ['컨테이너', `${containers.length} <small>실행 ${n('running')} · 문제 ${n('warning') + n('down')} · 중지 ${n('stopped')}</small>`],
+    ['이미지', '14 <small>· 6.2 GB</small>'],
+    ['볼륨', '9 <small>· 3.4 GB</small>'],
+    ['Compose 프로젝트', '3'],
+  ].map(([k, v]) => `<div class="item"><span>${k}</span><b>${v}</b></div>`).join('');
+}
+function renderDkSeg() {
+  const cnt = f => containers.filter(c => dkMatch(c, f)).length;
+  const opts = [['', '전체'], ['running', '실행 중'], ['problem', '문제'], ['stopped', '중지']];
+  $('#dkSeg').innerHTML = opts.map(([k, l]) => `<button aria-pressed="${dk.f === k}" data-k="${k}">${l}<span class="n">${cnt(k)}</span></button>`).join('');
+  $$('#dkSeg button').forEach(b => b.onclick = () => { dk.f = b.dataset.k; renderDkSeg(); renderDkRows(); });
+}
+function dkMatch(c, f) { const k = DK(c)[0]; return !f || (f === 'problem' ? (k === 'warning' || k === 'down') : k === f); }
+function renderDkRows() {
+  const q = dk.q.toLowerCase(), order = { down: 0, warning: 1, running: 2, stopped: 3 };
+  const list = containers.filter(c => dkMatch(c, dk.f))
+    .filter(c => !q || (c.name + c.image + (c.project || '') + c.ports.join()).toLowerCase().includes(q))
+    .sort((a, b) => order[DK(a)[0]] - order[DK(b)[0]]);
+  const row = c => {
+    const [k, l] = DK(c), pct = c.mem != null && c.limit ? c.mem / c.limit * 100 : null;
+    return `<tr data-cid="${c.id}" tabindex="0">
+      <td>${xbadge(k, l)}</td>
+      <td><div class="svc"><span class="ico">${ic('box')}</span><div><b>${c.name}</b>${c.alert ? `<span class="alert ${k === 'down' ? 'crit' : ''}">${c.alert}</span>` : `<span>${c.image}</span>`}</div></div></td>
+      <td>${c.ports.length ? c.ports.map(p => `<code class="pcode">${p}</code>`).join(' ') : '<span class="muted">—</span>'}</td>
+      <td class="num"><div class="spark">${sparkline(c.cpu)}<span style="min-width:40px">${c.cpu ? last(c.cpu).toFixed(0) + '%' : '—'}</span></div></td>
+      <td class="num"><div class="memcell">${pct != null ? `<span class="meter ${pct >= 80 ? 'hot' : ''}" aria-hidden="true"><i style="width:${pct.toFixed(0)}%"></i></span>` : ''}<span>${c.mem != null ? fmtMem(c.mem) + (c.limit ? ' / ' + fmtMem(c.limit) : '') : '—'}</span></div></td>
+      <td class="num c-net" style="font-size:13px">${c.net}</td>
+      <td class="num" style="${c.restarts >= 3 ? 'color:var(--warn-text)' : ''}">${c.restarts}</td>
+      <td class="num">${c.up}</td>
+      <td><div class="actions">
+        <button class="btn sm icon" aria-label="${c.name} 로그 보기" title="로그">${ic('file')}</button>
+        ${c.state === 'exited'
+          ? `<button class="btn sm icon" data-act aria-label="${c.name} 시작" title="시작">${ic('play')}</button>`
+          : `<button class="btn sm icon" data-act aria-label="${c.name} 재시작" title="재시작">${ic('restart')}</button><button class="btn sm icon danger" data-act aria-label="${c.name} 중지" title="중지">${ic('stop')}</button>`}
+      </div></td>
+    </tr>`;
+  };
+  let html = '';
+  if (dk.group) {
+    const groups = {};
+    list.forEach(c => (groups[c.project || '독립 컨테이너'] ??= []).push(c));
+    for (const [g, cs] of Object.entries(groups))
+      html += `<tr class="group"><td colspan="9">${ic('layers')}${g} <span style="font-weight:400">· ${cs.length}개</span></td></tr>` + cs.map(row).join('');
+  } else html = list.map(row).join('');
+  $('#dkRows').innerHTML = html || `<tr><td colspan="9" class="muted" style="text-align:center;padding:36px">조건에 맞는 컨테이너가 없습니다.</td></tr>`;
+  $$('#dkRows tr[data-cid]').forEach(tr => {
+    tr.onclick = e => { if (e.target.closest('[data-act]')) return; openContainer(tr.dataset.cid); };
+    tr.onkeydown = e => { if (e.key === 'Enter' && !e.target.closest('[data-act]')) openContainer(tr.dataset.cid); };
+  });
+}
+function renderDkSide() {
+  const disk = [['이미지', 6.2, '회수 가능 2.1 GB'], ['볼륨', 3.4, '사용 안 함 2개 · 0.6 GB'], ['빌드 캐시', 2.0, '전부 회수 가능'], ['컨테이너', 1.1, '중지된 컨테이너 0.3 GB']];
+  $('#dkDisk').innerHTML = disk.map(([k, gb, d]) => `<li><div class="grow">${k}<span>${d}</span></div><span class="meter" style="width:140px" aria-hidden="true"><i style="width:${gb / 6.2 * 100}%"></i></span><b class="mono" style="min-width:64px;text-align:right">${gb} GB</b></li>`).join('');
+  const ev = [['down', 'elasticsearch 종료', 'OOM · exit 137', '09:38'], ['warning', 'kibana unhealthy', '헬스체크 3회 실패', '09:39'], ['warning', 'api-worker 재시작', '5회째 · exit 1', '09:36'], ['running', 'redis 시작', 'compose up backend', '어제']];
+  $('#dkEvents').innerHTML = ev.map(([s, t, d, tm]) => `<li>${sIcon(s)}<div><b>${t}</b><span class="muted">${d}</span></div><time>${tm}</time></li>`).join('');
+}
+function openContainer(id) {
+  lastFocus = document.activeElement;
+  const c = containers.find(x => x.id === id), [k, l] = DK(c);
+  $('#dStatus').innerHTML = xbadge(k, l);
+  $('#dName').textContent = c.name;
+  $('#dDesc').textContent = `Docker · ${c.image}`;
+  $('.tabs').hidden = true;
+  const memS = c.mem != null ? series(c.mem, (c.limit || 512) * 0.03, 30, 0, c.limit || 512) : null;
+  const logs = (c.logs || [['ok', 'INFO ', 'Ready to accept connections'], ['t', 'INFO ', 'Background save started'], ['t', 'INFO ', 'DB saved on disk'], ['ok', 'INFO ', 'Health check OK']])
+    .map(([cl, lv, m], i) => `<span class="t">09:${40 + i}:0${i}</span> <span class="${cl}">${lv}</span> ${m}`).join('\n');
+  $('#dBody').innerHTML = `
+    ${c.alert ? `<div class="callout ${k}">${sIcon(k)}<div><b>${l}</b> · ${c.alert}</div></div>` : ''}
+    <dl class="kv">
+      <dt>컨테이너 ID</dt><dd><code>${c.cid}</code></dd>
+      <dt>이미지</dt><dd><code>${c.image}</code></dd>
+      <dt>Compose</dt><dd>${c.project || '—'}</dd>
+      <dt>포트</dt><dd>${c.ports.length ? c.ports.map(p => `<code class="pcode">0.0.0.0:${p}</code>`).join(' ') : '—'}</dd>
+      <dt>재시작 정책</dt><dd>unless-stopped · 재시작 <span class="mono">${c.restarts}</span>회</dd>
+      <dt>헬스체크</dt><dd>${c.health || '설정 안 됨'}</dd>
+      <dt>볼륨</dt><dd>${c.vol ? `<code>${c.vol}</code>` : '—'}</dd>
+    </dl>
+    ${c.cpu ? `<div><h3>CPU · 최근 30분 <b class="mono">${last(c.cpu).toFixed(1)}%</b></h3><div id="cCpu"></div></div>` : ''}
+    ${memS ? `<div><h3>메모리${c.limit ? ' · 한도 ' + fmtMem(c.limit) : ''} <b class="mono">${fmtMem(last(memS))}</b></h3><div id="cMem"></div></div>` : ''}
+    <div><h3>로그 · docker logs --tail 50</h3><div class="logs" tabindex="0" aria-label="컨테이너 로그">${logs}</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn sm" data-act>${ic('terminal')}셸 열기 (exec)</button>
+      <button class="btn sm" data-act>${ic('download')}로그 다운로드</button>
+      <button class="btn sm danger" data-act>${ic('trash')}컨테이너 삭제</button>
+    </div>`;
+  if (c.cpu) areaChart($('#cCpu'), c.cpu, { label: 'CPU 사용률', threshold: 80 });
+  if (memS) areaChart($('#cMem'), memS, { label: '메모리', unit: 'MB', max: c.limit || 512 });
+  $$('#dBody [data-act]').forEach(b => b.onclick = () => toast('목업: 실제 제어는 백엔드 연동 후 구현'));
+  $('#drawer').classList.add('open'); $('#scrim').classList.add('open');
+  $('#drawer').setAttribute('aria-hidden', 'false');
+  $('#closeDrawer').focus();
+}
+$('#dq').oninput = e => { dk.q = e.target.value; renderDkRows(); };
+$('#dkGroup').onchange = e => { dk.group = e.target.checked; renderDkRows(); };
+
+/* =====================================================================
+   Firewall (allow-list mode)
+   ===================================================================== */
+let allow = [
+  { id: 1, on: true,  name: '내 노트북',     cidr: '192.168.0.15',    ports: '전체',          exp: '없음' },
+  { id: 2, on: true,  name: '사무실 LAN',    cidr: '192.168.0.0/24',  ports: '80, 443, 8080', exp: '없음' },
+  { id: 3, on: true,  name: '집 공인 IP',    cidr: '211.234.10.27',   ports: '8080',          exp: '없음' },
+  { id: 4, on: true,  name: '협력사 테스트', cidr: '58.120.33.0/28',  ports: '443',           exp: '11/30' },
+  { id: 5, on: false, name: 'VPN 대역',      cidr: '10.8.0.0/24',     ports: '전체',          exp: '없음' },
+];
+let exposure = [
+  { name: 'Nginx 리버스 프록시', port: '80, 443', mode: 'allow' },
+  { name: '사내 API 서버',       port: '8080',    mode: 'allow' },
+  { name: 'RabbitMQ 관리 UI',    port: '15672',   mode: 'allow' },
+  { name: 'Portainer',           port: '9443',    mode: 'allow' },
+  { name: 'PostgreSQL 16',       port: '5432',    mode: 'local' },
+  { name: 'Redis',               port: '6379',    mode: 'local' },
+  { name: '프론트엔드 개발서버', port: '5173',    mode: 'local' },
+  { name: '원격 데스크톱 (RDP)', port: '3389',    mode: 'local', sys: true },
+];
+let conflicts = [
+  { name: 'Node.js JavaScript Runtime', desc: 'TCP 모든 포트 · 모든 IP 허용 · node.exe', off: true },
+  { name: 'Docker Desktop Backend',     desc: 'TCP 모든 포트 · 모든 IP 허용 · com.docker.backend.exe', off: true },
+  { name: 'PostgreSQL Server',          desc: 'TCP 5432 · 모든 IP 허용', off: true },
+];
+const blocked = [
+  ['09:51', '45.155.205.233', '3389', '원격 데스크톱', 212],
+  ['09:48', '185.220.101.7',  '5432', 'PostgreSQL', 48],
+  ['09:40', '192.168.0.31',   '8080', '사내 API 서버', 3],
+  ['09:12', '103.77.11.2',    '445',  'SMB 파일 공유', 96],
+];
+let fw = { mode: true, dirty: 0, nextId: 6, autoRollback: true, rollback: null, lastApplied: '오늘 09:12' };
+const fwSnapshot = () => JSON.stringify({ allow, exposure, conflicts, mode: fw.mode });
+let fwSnap = fwSnapshot();
+
+const isPrivate = ip => /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|127\.)/.test(ip);
+const validCidr = v => {
+  const m = v.trim().match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?:\/(\d{1,2}))?$/);
+  return !!m && m.slice(1, 5).every(n => +n <= 255) && (m[5] === undefined || +m[5] <= 32);
+};
+const markFw = () => { fw.dirty++; renderFw(); };
+
+function renderFw() {
+  const on = allow.filter(a => a.on), net = on.filter(a => !isPrivate(a.cidr)).length;
+  $('#fwKpis').innerHTML = [
+    ['running', 'Windows 방화벽', '켜짐', '도메인 · 개인 · 공용 프로필', 'var(--st-good)'],
+    [fw.mode ? 'running' : 'stopped', '외부 → 이 PC 접속', fw.mode ? '차단' : '기본값', fw.mode ? '허용 목록 IP만 통과' : 'Windows 기본 규칙 사용', fw.mode ? 'var(--st-good)' : 'var(--st-off)'],
+    [null, '허용 IP 규칙', on.length, `전체 ${allow.length}개 · 인터넷 IP ${net}개`, 'var(--chart-line)'],
+    ['down', '오늘 차단된 접속', '1,284', '고유 IP 87개 · 대부분 3389/445', 'var(--st-crit)'],
+  ].map(([st, l, v, sub, bar]) => `<div class="tile glass" style="--bar:${bar}"><div class="label">${st ? sIcon(st) : ic('shield')}${l}</div><div class="value">${v}</div><div class="sub">${sub}</div></div>`).join('');
+
+  $('#fwModeBanner').innerHTML = fw.mode
+    ? `<div class="banner info">${ic('shield', 'i')}<div class="grow"><b>허용 목록 모드 켜짐</b>인터넷에서 이 PC로 들어오는 연결은 모두 막고, 아래 목록의 IP만 지정한 포트로 접속할 수 있어요. 이 PC에서 인터넷으로 나가는 연결(웹 브라우징 등)은 영향이 없습니다.</div><label class="switch"><input type="checkbox" id="fwMode" checked aria-label="허용 목록 모드"><span></span></label></div>`
+    : `<div class="banner off">${ic('shield', 'i')}<div class="grow"><b>허용 목록 모드 꺼짐</b>Windows 기본 방화벽 규칙을 그대로 사용합니다. 프로그램이 만든 허용 규칙에 따라 인터넷에서 접속될 수 있어요.</div><label class="switch"><input type="checkbox" id="fwMode" aria-label="허용 목록 모드"><span></span></label></div>`;
+
+  const rdp = exposure.find(e => e.sys);
+  $('#fwWarn').innerHTML = fw.mode && rdp.mode === 'local'
+    ? `<div class="banner warn">${ic('alert', 'i')}<div class="grow"><b>원격 데스크톱(3389)이 '로컬만'으로 설정되어 있어요</b>지금 다른 컴퓨터에서 원격으로 접속 중이라면 적용하는 순간 연결이 끊깁니다. 원격 접속이 필요하면 아래 '서비스별 외부 노출'에서 '허용 목록'으로 바꾸세요.</div></div>`
+    : '';
+
+  $('#fwPorts').innerHTML = `<option value="전체">허용 목록 포트 전체</option>` +
+    exposure.filter(e => e.mode === 'allow').map(e => `<option value="${e.port}">${e.name} (${e.port})</option>`).join('');
+
+  $('#fwRows').innerHTML = allow.map(a => {
+    const priv = isPrivate(a.cidr);
+    return `<tr>
+      <td><label class="switch"><input type="checkbox" data-tog="${a.id}" ${a.on ? 'checked' : ''} aria-label="${esc(a.name)} 규칙 사용"><span></span></label></td>
+      <td><b style="font-weight:600">${esc(a.name)}</b>${a.isNew ? '<span class="tag-new">NEW</span>' : ''}</td>
+      <td><code class="pcode">${esc(a.cidr)}</code></td>
+      <td class="mono" style="font-size:13px">${a.ports === '전체' ? '<span class="muted">전체</span>' : esc(a.ports)}</td>
+      <td><span class="scope ${priv ? '' : 'net'}">${ic(priv ? 'server' : 'globe')}${priv ? 'LAN' : '인터넷'}</span></td>
+      <td class="mono muted" style="font-size:13px">${a.exp}</td>
+      <td><button class="btn sm icon danger" data-del="${a.id}" aria-label="${esc(a.name)} 삭제" title="삭제">${ic('trash')}</button></td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">허용된 IP가 없습니다. 외부 접속이 모두 차단돼요.</td></tr>`;
+
+  $('#fwExpo').innerHTML = exposure.map((e, i) => `<li>
+      <div class="grow">${e.name}<span>TCP ${e.port}</span></div>
+      <div class="seg sm" role="group" aria-label="${e.name} 노출 범위">
+        <button data-expo="${i}" data-m="local" aria-pressed="${e.mode === 'local'}">로컬만</button>
+        <button data-expo="${i}" data-m="allow" aria-pressed="${e.mode === 'allow'}">허용 목록</button>
+      </div></li>`).join('');
+
+  $('#fwBlocked').innerHTML = blocked.map(([tm, ip, port, svc, n]) => `<li>${ic('ban')}<div><b class="mono">${ip}</b><span class="muted">${tm} · ${port} ${svc} · ${n}회 · ${isPrivate(ip) ? 'LAN' : '인터넷'}</span></div><button class="btn sm" data-allowip="${ip}">허용</button></li>`).join('');
+
+  $('#fwConf').innerHTML = conflicts.map((c, i) => `<li>
+      <div class="grow">${c.name}<span>${c.desc}</span></div>
+      <span class="muted" style="font-size:13px">${c.off ? '적용 시 끄기' : '그대로 둠'}</span>
+      <label class="switch"><input type="checkbox" data-conf="${i}" ${c.off ? 'checked' : ''} aria-label="${c.name} 적용 시 끄기"><span></span></label></li>`).join('');
+
+  $('#fwCode').innerHTML = fwScript();
+  renderApply();
+}
+
+function fwScript() {
+  const C = t => `<span class="c"># ${t}</span>`, K = t => `<span class="k">${t}</span>`;
+  const L = [C('svc.watch 방화벽 규칙 · 관리자 PowerShell'), `${K('Get-NetFirewallRule')} -Group "svc.watch" -ErrorAction SilentlyContinue | ${K('Remove-NetFirewallRule')}`];
+  if (!fw.mode) {
+    L.push('', C('허용 목록 모드 해제 → Windows 기본값 복원'), `${K('Set-NetFirewallProfile')} -All -DefaultInboundAction NotConfigured`);
+    conflicts.forEach(c => L.push(`${K('Enable-NetFirewallRule')} -DisplayName "${c.name}"`));
+    return L.join('\n');
+  }
+  L.push('', C('1) 들어오는 연결 기본 차단 · 나가는 연결 허용'), `${K('Set-NetFirewallProfile')} -All -Enabled True -DefaultInboundAction Block -DefaultOutboundAction Allow`);
+  const off = conflicts.filter(c => c.off);
+  if (off.length) { L.push('', C('2) 모든 IP를 허용하는 기존 규칙 끄기')); off.forEach(c => L.push(`${K('Disable-NetFirewallRule')} -DisplayName "${c.name}"`)); }
+  const openPorts = exposure.filter(e => e.mode === 'allow').map(e => e.port).join(',').replace(/\s/g, '');
+  const on = allow.filter(a => a.on);
+  L.push('', C('3) 허용 목록 IP'));
+  if (!on.length) L.push(C('(허용된 IP 없음 → 외부 접속 전부 차단)'));
+  on.forEach(a => L.push(`${K('New-NetFirewallRule')} -Group "svc.watch" -DisplayName "<span class="s">허용: ${esc(a.name)}</span>" -Direction Inbound -Action Allow -Protocol TCP -RemoteAddress ${esc(a.cidr)} -LocalPort ${a.ports === '전체' ? openPorts : esc(a.ports).replace(/\s/g, '')}`));
+  const local = exposure.filter(e => e.mode === 'local');
+  if (local.length) { L.push('', C('4) 로컬 전용 포트 · 외부에서 차단 (차단 규칙이 허용보다 우선)')); local.forEach(e => L.push(`${K('New-NetFirewallRule')} -Group "svc.watch" -DisplayName "<span class="s">차단: ${e.name}</span>" -Direction Inbound -Action Block -Protocol TCP -LocalPort ${e.port.replace(/\s/g, '')}`)); }
+  return L.join('\n');
+}
+
+function renderApply() {
+  const bar = $('#applyBar');
+  bar.className = 'applybar glass';
+  if (fw.rollback) {
+    bar.classList.add('rollback');
+    bar.innerHTML = `${ic('undo', 'i')}<div class="grow" style="flex:1"><b>새 규칙이 적용됐어요.</b> 접속이 정상이면 <b>유지</b>를 누르세요. 누르지 않으면 <span class="count-big">${fw.rollback.left}</span>초 뒤 이전 규칙으로 자동 복구됩니다.</div>
+      <button class="btn" id="fwRevert">${ic('undo')}지금 되돌리기</button><button class="btn accent" id="fwKeep">유지</button>`;
+    $('#fwRevert').onclick = () => endRollback(false); $('#fwKeep').onclick = () => endRollback(true);
+  } else if (fw.dirty) {
+    bar.classList.add('pending');
+    bar.innerHTML = `${ic('alert', 'i')}<div style="flex:1">적용하지 않은 변경 <span class="count-big">${fw.dirty}</span>건</div>
+      <label class="check"><input type="checkbox" id="fwAuto" ${fw.autoRollback ? 'checked' : ''}> 60초 안에 확인하지 않으면 자동 복구</label>
+      <button class="btn" id="fwCancel">변경 취소</button><button class="btn accent" id="fwApply">${ic('shield')}적용 (관리자 권한)</button>`;
+    $('#fwAuto').onchange = e => fw.autoRollback = e.target.checked;
+    $('#fwCancel').onclick = () => { ({ allow, exposure, conflicts, mode: fw.mode } = JSON.parse(fwSnap)); fw.dirty = 0; renderFw(); toast('변경 사항을 취소했어요'); };
+    $('#fwApply').onclick = applyFw;
+  } else {
+    bar.innerHTML = `${sIcon('running')}<div style="flex:1">모든 규칙이 적용된 상태예요 <span class="muted">· 마지막 적용 ${fw.lastApplied}</span></div>`;
+  }
+}
+function applyFw() {
+  fw.dirty = 0; fw.lastApplied = '방금';
+  if (!fw.autoRollback) { fwSnap = fwSnapshot(); renderFw(); toast('목업: 방화벽 규칙이 적용됐다고 가정합니다'); return; }
+  fw.rollback = { left: 60, timer: setInterval(() => { if (--fw.rollback.left <= 0) endRollback(false); else renderApply(); }, 1000) };
+  renderFw();
+}
+function endRollback(keep) {
+  clearInterval(fw.rollback.timer); fw.rollback = null;
+  if (keep) { fwSnap = fwSnapshot(); toast('새 규칙을 유지합니다'); }
+  else { ({ allow, exposure, conflicts, mode: fw.mode } = JSON.parse(fwSnap)); fw.lastApplied = '복구됨'; toast('이전 규칙으로 되돌렸어요'); }
+  renderFw();
+}
+
+$('#view-firewall').addEventListener('click', e => {
+  const t = e.target.closest('button'); if (!t) return;
+  if (t.dataset.del) { allow = allow.filter(a => a.id !== +t.dataset.del); markFw(); }
+  else if (t.dataset.expo) { const x = exposure[+t.dataset.expo]; if (x.mode !== t.dataset.m) { x.mode = t.dataset.m; markFw(); } }
+  else if (t.dataset.allowip) { $('#fwIp').value = t.dataset.allowip; $('#fwIp').scrollIntoView({ block: 'center' }); $('#fwName').focus(); }
+});
+$('#view-firewall').addEventListener('change', e => {
+  const t = e.target;
+  if (t.id === 'fwMode') { fw.mode = t.checked; markFw(); }
+  else if (t.dataset.tog) { allow.find(a => a.id === +t.dataset.tog).on = t.checked; markFw(); }
+  else if (t.dataset.conf) { conflicts[+t.dataset.conf].off = t.checked; markFw(); }
+});
+$('#fwAdd').onsubmit = e => {
+  e.preventDefault();
+  const ip = $('#fwIp').value.trim(), msg = $('#fwIpMsg');
+  if (!validCidr(ip)) {
+    $('#fwIp').setAttribute('aria-invalid', 'true'); msg.classList.add('err');
+    msg.textContent = ip ? '올바른 IPv4 주소나 CIDR 대역이 아니에요 (예: 203.0.113.10, 192.168.0.0/24)' : 'IP 주소를 입력하세요';
+    $('#fwIp').focus(); return;
+  }
+  if (allow.some(a => a.cidr === ip)) { $('#fwIp').setAttribute('aria-invalid', 'true'); msg.classList.add('err'); msg.textContent = '이미 목록에 있는 IP예요'; return; }
+  $('#fwIp').removeAttribute('aria-invalid'); msg.classList.remove('err'); msg.textContent = 'IP 하나 또는 CIDR 대역';
+  allow.push({ id: fw.nextId++, on: true, name: $('#fwName').value.trim() || ip, cidr: ip, ports: $('#fwPorts').value, exp: '없음', isNew: true });
+  $('#fwIp').value = ''; $('#fwName').value = '';
+  markFw();
+  if (!isPrivate(ip)) toast('인터넷 IP를 허용했어요. 꼭 필요한 포트만 열어 두세요');
+};
+$('#fwIp').oninput = () => { if ($('#fwIp').getAttribute('aria-invalid')) { $('#fwIp').removeAttribute('aria-invalid'); $('#fwIpMsg').classList.remove('err'); $('#fwIpMsg').textContent = 'IP 하나 또는 CIDR 대역'; } };
+$('#fwCopy').onclick = () => { navigator.clipboard?.writeText($('#fwCode').textContent); toast('명령을 클립보드에 복사했어요'); };
+
+/* =====================================================================
+   View routing
+   ===================================================================== */
+const VIEWS = {
+  dashboard: ['서비스 현황', '이 컴퓨터에 등록한 서비스의 상태를 실시간으로 확인합니다.'],
+  docker:    ['Docker 컨테이너', 'Docker Desktop에서 돌고 있는 컨테이너의 상태와 리소스 사용량입니다.'],
+  firewall:  ['방화벽 · 접속 허용 목록', '인터넷에서 들어오는 연결을 막고, 내가 허용한 IP만 들어올 수 있게 관리합니다.'],
+};
+let view = 'dashboard';
+function setView(v) {
+  view = v;
+  for (const k in VIEWS) $('#view-' + k).hidden = k !== v;
+  $$('nav a').forEach(a => a.dataset.view === v ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'));
+  $('#pageTitle').textContent = VIEWS[v][0]; $('#pageSub').textContent = VIEWS[v][1];
+  $('#addBtn').hidden = v !== 'dashboard';
+  $('#live').hidden = $('#pauseBtn').hidden = v === 'firewall';
+  if (location.hash.slice(1) !== v) history.replaceState(null, '', '#' + v);
+  if (v === 'docker') renderDocker();
+  if (v === 'firewall') renderFw();
+}
+$$('nav a').forEach(a => a.onclick = e => {
+  e.preventDefault();
+  if (a.dataset.view) setView(a.dataset.view); else toast('목업: 준비 중인 메뉴예요');
+});
+
+renderKpis(); renderHost(); renderFeed(); renderSeg(); renderRows(); renderLive();
+setView(VIEWS[location.hash.slice(1)] ? location.hash.slice(1) : 'dashboard');
+</script>
+</body>
+</html>

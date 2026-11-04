@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>svc.watch · 로컬 서비스 모니터</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+<script>document.documentElement.dataset.theme = localStorage.getItem('theme') || 'dark';</script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-server" viewBox="0 0 24 24"><rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 6h.01M6 18h.01"/></symbol>
+    <symbol id="i-dash" viewBox="0 0 24 24"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8M16 17H8M10 9H8"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-cpu" viewBox="0 0 24 24"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></symbol>
+    <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/></symbol>
+    <symbol id="i-cog" viewBox="0 0 24 24"><path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"/><path d="M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/><path d="M12 2v2M12 22v-2M17 20.66l-1-1.73M11 10.27 7 3.34M20.66 17l-1.73-1M3.34 7l1.73 1M14 12h8M2 12h2M20.66 7l-1.73 1M3.34 17l1.73-1M17 3.34l-1 1.73M11 13.73l-4 6.93"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></symbol>
+    <symbol id="i-restart" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect width="14" height="14" x="5" y="5" rx="2"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></symbol>
+    <symbol id="i-plug" viewBox="0 0 24 24"><path d="M12 22v-5M9 8V2M15 8V2M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></symbol>
+    <symbol id="i-activity" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65M22 12.65l-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></symbol>
+    <symbol id="i-terminal" viewBox="0 0 24 24"><path d="m4 17 6-6-6-6M12 19h8"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+    <symbol id="i-hdd" viewBox="0 0 24 24"><path d="M22 12H2M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z"/><path d="M6 16h.01M10 16h.01"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+  </defs>
+</svg>
+
+<div class="shell">
+  <aside class="side">
+    <div class="brand">
+      <div class="logo"><svg class="i"><use href="#i-activity"/></svg></div>
+      <div><b>svc.watch</b><small>로컬 서비스 모니터</small></div>
+    </div>
+    <nav aria-label="주 메뉴">
+      <ul>
+        <li><a href="#dashboard" data-view="dashboard" aria-current="page"><svg class="i" aria-hidden="true"><use href="#i-dash"/></svg>대시보드<span class="count" id="navSvcCount" hidden></span></a></li>
+        <li><a href="#docker" data-view="docker"><svg class="i" aria-hidden="true"><use href="#i-box"/></svg>Docker<span class="count" id="navDkCount" style="background:var(--st-warn);color:#0F172A" hidden></span></a></li>
+        <li><a href="#firewall" data-view="firewall"><svg class="i" aria-hidden="true"><use href="#i-shield"/></svg>방화벽</a></li>
+      </ul>
+    </nav>
+    <div class="hostcard glass">
+      <div style="display:flex;align-items:center;gap:8px;font-weight:600"><svg class="i sm" aria-hidden="true"><use href="#i-server"/></svg><span class="mono" id="hostName">—</span></div>
+      <div class="row"><span>OS</span><span id="hostOs">—</span></div>
+      <div class="row"><span>부팅 후</span><span class="mono" id="hostUp">—</span></div>
+      <div class="row"><span>코어 / RAM</span><span class="mono" id="hostSpec">—</span></div>
+      <span class="agent" id="agentBadge">연결 중…</span>
+    </div>
+  </aside>
+
+  <main>
+    <div class="topbar">
+      <div>
+        <h1 id="pageTitle">서비스 현황</h1>
+        <p id="pageSub">이 컴퓨터에 등록한 서비스의 상태를 실시간으로 확인합니다.</p>
+      </div>
+      <div class="spacer"></div>
+      <span class="live" id="live" role="status" aria-live="polite"><span class="dot" aria-hidden="true"></span><span id="liveText">연결 중</span></span>
+      <button class="btn" id="pauseBtn" aria-pressed="false"><svg class="i sm" aria-hidden="true"><use href="#i-pause"/></svg><span>일시정지</span></button>
+      <button class="btn icon" id="themeBtn" aria-label="테마 전환"><svg class="i" aria-hidden="true"><use href="#i-sun"/></svg></button>
+      <button class="btn accent" id="addBtn"><svg class="i sm" aria-hidden="true"><use href="#i-plus"/></svg>서비스 등록</button>
+    </div>
+
+    <!-- ===== Dashboard ===== -->
+    <div class="view" id="view-dashboard">
+      <section class="kpis" id="kpis" aria-label="요약"></section>
+      <section class="row2">
+        <div class="glass">
+          <div class="card-head"><svg class="i sm" aria-hidden="true"><use href="#i-cpu"/></svg><h2>호스트 리소스</h2><span class="muted">· 최근 5분 · 5초 간격</span></div>
+          <div class="host-charts">
+            <div><div class="metric-head"><span>CPU 사용률</span><b id="hostCpuNow">—</b></div><div id="hostCpu"></div></div>
+            <div><div class="metric-head"><span>메모리 사용률</span><b id="hostMemNow">—</b></div><div id="hostMem"></div></div>
+          </div>
+        </div>
+        <div class="glass">
+          <div class="card-head"><svg class="i sm" aria-hidden="true"><use href="#i-bell"/></svg><h2>최근 이벤트</h2><span class="spacer"></span>
+            <button class="btn sm" id="notifyBtn" hidden><svg class="i sm" aria-hidden="true"><use href="#i-bell"/></svg>브라우저 알림 켜기</button></div>
+          <ul class="feed" id="feed"></ul>
+        </div>
+      </section>
+      <section class="glass">
+        <div class="toolbar">
+          <div class="search">
+            <svg class="i sm" aria-hidden="true"><use href="#i-search"/></svg>
+            <label class="sr-only" for="q">서비스 검색</label>
+            <input class="input" id="q" placeholder="이름, 포트, 대상 검색">
+          </div>
+          <div class="seg" id="statusSeg" role="group" aria-label="상태 필터"></div>
+          <div class="spacer"></div>
+          <label class="sr-only" for="typeSel">유형 필터</label>
+          <select class="input" id="typeSel">
+            <option value="">모든 유형</option>
+            <option value="svc">Windows 서비스</option>
+            <option value="proc">프로세스</option>
+            <option value="docker">Docker</option>
+            <option value="http">HTTP 엔드포인트</option>
+            <option value="task">작업 스케줄러</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>상태</th><th>서비스</th><th>유형</th>
+                <th class="num c-net">PID</th><th class="num">포트</th>
+                <th class="num">CPU · 30분</th><th class="num">메모리</th>
+                <th class="num">응답</th><th class="num">가동</th><th class="num"><span class="sr-only">작업</span></th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <!-- ===== Docker ===== -->
+    <div class="view" id="view-docker" hidden>
+      <div id="dkBanner"></div>
+      <section class="glass strip" id="dkStrip" aria-label="Docker 엔진 요약"></section>
+      <section class="glass">
+        <div class="toolbar">
+          <div class="search">
+            <svg class="i sm" aria-hidden="true"><use href="#i-search"/></svg>
+            <label class="sr-only" for="dq">컨테이너 검색</label>
+            <input class="input" id="dq" placeholder="이름, 이미지, 포트 검색">
+          </div>
+          <div class="seg" id="dkSeg" role="group" aria-label="컨테이너 상태 필터"></div>
+          <div class="spacer"></div>
+          <label class="check"><input type="checkbox" id="dkGroup" checked> Compose 프로젝트별로 묶기</label>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>상태</th><th>컨테이너</th><th>포트</th>
+                <th class="num">CPU · 30분</th><th class="num">메모리 / 한도</th><th class="num c-net">네트워크 ↓ / ↑</th>
+                <th class="num">재시작</th><th class="num">가동</th><th class="num"><span class="sr-only">작업</span></th>
+              </tr>
+            </thead>
+            <tbody id="dkRows"></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="row2">
+        <div class="glass">
+          <div class="card-head"><svg class="i sm" aria-hidden="true"><use href="#i-hdd"/></svg><h2>Docker 디스크 사용량</h2><span class="spacer"></span>
+            <button class="btn sm" id="dkPrune"><svg class="i sm" aria-hidden="true"><use href="#i-trash"/></svg>정리 (prune)</button></div>
+          <ul class="expo" id="dkDisk"></ul>
+        </div>
+        <div class="glass">
+          <div class="card-head"><svg class="i sm" aria-hidden="true"><use href="#i-activity"/></svg><h2>최근 Docker 이벤트</h2><span class="muted">· 대시보드 실행 이후</span></div>
+          <ul class="feed" id="dkEvents"></ul>
+        </div>
+      </section>
+    </div>
+
+    <!-- ===== Firewall ===== -->
+    <div class="view" id="view-firewall" hidden>
+      <section class="kpis" id="fwKpis" aria-label="방화벽 요약"></section>
+      <div id="fwBanners" style="display:grid;gap:var(--space-3)"></div>
+      <section class="fw-grid">
+        <div class="glass">
+          <div class="card-head"><svg class="i sm" aria-hidden="true"><use href="#i-shield"/></svg><h2>허용 IP 목록</h2><span class="muted">· 여기 있는 IP만 들어올 수 있어요</span></div>
+          <form class="addrow" id="fwAdd" novalidate>
+            <div>
+              <label for="fwIp">IP 또는 대역</label>
+              <input class="input mono" id="fwIp" placeholder="203.0.113.10 · 192.168.0.0/24" aria-describedby="fwIpMsg" autocomplete="off">
+              <div class="hint" id="fwIpMsg">IP 하나 또는 CIDR 대역 (IPv6도 가능)</div>
+            </div>
+            <div>
+              <label for="fwName">이름</label>
+              <input class="input" id="fwName" placeholder="예: 집 PC" autocomplete="off" maxlength="60">
+            </div>
+            <div>
+              <label for="fwPorts">허용 포트</label>
+              <select class="input" id="fwPorts"></select>
+              <input class="input mono hidden-input" id="fwPortsCustom" placeholder="예: 80, 443" style="margin-top:6px" aria-label="직접 입력한 포트">
+            </div>
+            <button class="btn accent" type="submit"><svg class="i sm" aria-hidden="true"><use href="#i-plus"/></svg>추가</button>
+          </form>
+          <div class="table-wrap">
+            <table class="compact">
+              <thead><tr><th>사용</th><th>이름</th><th>IP / 대역</th><th>허용 포트</th><th>구분</th><th>만료</th><th><span class="sr-only">삭제</span></th></tr></thead>
+              <tbody id="fwRows"></tbody>
+            </table>
+          </div>
+        </div>
+        <div style="display:grid;gap:var(--space-3)">
+          <div class="glass">
+            <div class="card-head"><svg class="i sm" aria-hidden="true"><use href="#i-globe"/></svg><h2>포트별 외부 노출</h2></div>
+            <p class="card-note"><b>로컬만</b>: 이 PC 안에서만 접속 · <b>허용 목록</b>: 위 IP에서 접속 가능 · 목록에 없는 포트는 외부에서 모두 차단</p>
+            <ul class="expo" id="fwExpo"></ul>
+            <form class="mini-form" id="fwExpoAdd" novalidate>
+              <input class="input mono" id="fwExpoPort" placeholder="포트" inputmode="numeric" aria-label="포트 번호" style="max-width:100px">
+              <input class="input" id="fwExpoLabel" placeholder="이름 (예: 사내 API)" aria-label="포트 이름" maxlength="60">
+              <button class="btn sm" type="submit"><svg class="i sm" aria-hidden="true"><use href="#i-plus"/></svg>포트 추가</button>
+            </form>
+          </div>
+          <div class="glass">
+            <div class="card-head"><svg class="i sm" aria-hidden="true"><use href="#i-ban"/></svg><h2>최근 차단된 접속</h2><span class="spacer"></span><span class="muted">방화벽 로그</span></div>
+            <ul class="feed" id="fwBlocked"></ul>
+          </div>
+        </div>
+      </section>
+      <section class="glass">
+        <div class="card-head"><svg class="i sm" aria-hidden="true"><use href="#i-alert"/></svg><h2>모든 IP를 허용하는 기존 규칙</h2><span class="spacer"></span>
+          <button class="btn sm" id="fwScan"><svg class="i sm" aria-hidden="true"><use href="#i-search"/></svg>검사</button></div>
+        <p class="card-note">다른 프로그램이 만든 "모든 IP 허용" 규칙은 기본 차단 정책을 무시하고 인터넷 접속을 들여보냅니다. 위 '포트별 외부 노출'에 넣은 포트는 차단 규칙으로 보호되지만, 그 밖의 포트는 여기서 끄는 규칙만큼 막혀요.</p>
+        <ul class="expo" id="fwConf"></ul>
+      </section>
+      <section class="glass">
+        <div class="card-head"><svg class="i sm" aria-hidden="true"><use href="#i-terminal"/></svg><h2>적용될 PowerShell 명령</h2><span class="muted">· 미리보기</span><span class="spacer"></span>
+          <button class="btn sm" id="fwCopy"><svg class="i sm" aria-hidden="true"><use href="#i-copy"/></svg>복사</button></div>
+        <pre class="code" id="fwCode" tabindex="0" aria-label="적용될 PowerShell 명령"></pre>
+      </section>
+      <div class="applybar glass" id="applyBar" role="status" aria-live="polite"></div>
+    </div>
+  </main>
+</div>
+
+<!-- Detail drawer -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer glass" id="drawer" aria-hidden="true" aria-labelledby="dName" role="dialog">
+  <div class="drawer-head">
+    <div style="flex:1;min-width:0">
+      <div id="dStatus"></div>
+      <h2 id="dName">—</h2>
+      <div class="meta" id="dDesc"></div>
+    </div>
+    <div style="display:flex;gap:6px" id="dActions"></div>
+    <button class="btn sm icon" id="closeDrawer" aria-label="상세 패널 닫기"><svg class="i sm" aria-hidden="true"><use href="#i-x"/></svg></button>
+  </div>
+  <div class="tabs" role="tablist" id="dTabs">
+    <button class="tab" role="tab" data-tab="overview" aria-selected="true">개요</button>
+    <button class="tab" role="tab" data-tab="logs" aria-selected="false">로그</button>
+    <button class="tab" role="tab" data-tab="events" aria-selected="false">이벤트</button>
+    <button class="tab" role="tab" data-tab="settings" aria-selected="false">설정</button>
+  </div>
+  <div class="drawer-body" id="dBody" role="tabpanel"></div>
+</aside>
+
+<!-- Register modal -->
+<div class="backdrop" id="modal">
+  <div class="modal glass" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <div class="modal-head">
+      <div style="flex:1">
+        <h2 id="mTitle">서비스 등록</h2>
+        <p>이 컴퓨터에서 모니터링할 대상을 추가합니다.</p>
+      </div>
+      <button class="btn sm icon" id="xModal" aria-label="닫기"><svg class="i sm" aria-hidden="true"><use href="#i-x"/></svg></button>
+    </div>
+    <form id="mForm" novalidate>
+      <div class="form" id="mBody"></div>
+      <div class="modal-foot">
+        <button class="btn" type="button" id="mTest"><svg class="i sm" aria-hidden="true"><use href="#i-plug"/></svg>연결 테스트</button>
+        <div class="spacer"></div>
+        <button class="btn" type="button" id="cancelModal">취소</button>
+        <button class="btn accent" type="submit" id="saveModal">등록</button>
+      </div>
+    </form>
+  </div>
+</div>
+<datalist id="discoverList"></datalist>
+
+<script src="app.js"></script>
+</body>
+</html>
