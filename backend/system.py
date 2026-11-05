@@ -492,7 +492,14 @@ def start_process(cmd, cwd=None, log_file=None, start_log=None):
         out = open(path, "ab")
         out.write(f"\n[{datetime.now():%Y-%m-%d %H:%M:%S}] svc.watch 시작: {cmd} (폴더 {cwd})\n".encode("utf-8"))
         out.flush()
+    from .config import PORT as DASHBOARD_PORT
     env = {k: v for k, v in os.environ.items() if k not in _DASHBOARD_ONLY_ENV}
+    # run_server.bat keeps the dashboard's port in PORT (and its loop state in STOP_FLAG/RESTARTS). Apps that
+    # read PORT (Flask configs often do) would otherwise start on the dashboard's port instead of their own.
+    if env.get("PORT") == str(DASHBOARD_PORT):
+        env.pop("PORT")
+    for k in ("STOP_FLAG", "RESTARTS"):
+        env.pop(k, None)
     env["PYTHONUNBUFFERED"] = "1"
     # CREATE_NO_WINDOW gives the shell a hidden console that child programs (uv, python) share, so no window pops up.
     # Breaking away from the job keeps the server alive if the dashboard's scheduled task is stopped.
