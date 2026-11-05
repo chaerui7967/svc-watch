@@ -322,7 +322,7 @@ class Monitor:
             if action in ("stop", "restart"):
                 ok, err = system.stop_processes(system.match_processes(system.snapshot_processes(), target))
             if ok and action in ("start", "restart"):
-                ok, err = system.start_process(s.get("start_cmd"), s.get("cwd"), s.get("log_file"))
+                ok, err = self._start(s)
         elif typ == "docker":
             ok, err = docker_mon.control(target, action)
         elif typ == "task":
@@ -340,6 +340,13 @@ class Monitor:
             self._event("warning", f"{s['name']} {label} 실패", err or "", sid, s["name"])
         return ok, err
 
+    def _start(self, s):
+        """Run the service's start command in its project folder (set by the user, else where it last ran)."""
+        with self.lock:
+            proc_cwd = self._rt(s["id"]).get("proc_cwd")
+        return system.start_process(s.get("start_cmd"), s.get("cwd") or proc_cwd, s.get("log_file"),
+                                    system.start_log_path(s["id"]))
+
     def _control_http(self, s, action):
         port = checks.local_port(s["target"])
         if not port:
@@ -353,7 +360,7 @@ class Monitor:
                 if not ok:
                     return ok, err
         if action in ("start", "restart"):
-            return system.start_process(s.get("start_cmd"), s.get("cwd"), s.get("log_file"))
+            return self._start(s)
         return True, None
 
     def _control_task(self, s, action):

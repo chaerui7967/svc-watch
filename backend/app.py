@@ -219,10 +219,14 @@ def service_logs(sid: int, tail: int = 200):
     if s["type"] == "docker":
         lines, err = docker_mon.logs(s["target"], tail)
         return {"source": f"docker logs {s['target']}", "lines": lines, "error": err}
-    path = system.newest_log(_project_folder(s))
-    if path:
+    # Newest of: the project's own logs\*.log and the output of starts done from the dashboard.
+    candidates = [(p, label) for p, label in ((system.newest_log(_project_folder(s)), "프로젝트 폴더에서 자동으로 찾은 최신 로그"),
+                                              (system.start_log_path(s["id"]), "대시보드에서 시작한 실행 출력"))
+                  if p and os.path.isfile(p)]
+    if candidates:
+        path, label = max(candidates, key=lambda c: os.path.getmtime(c[0]))
         lines, err = system.tail_file(path, tail)
-        return {"source": f"{path} (프로젝트 폴더에서 자동으로 찾은 최신 로그)", "lines": lines, "error": err}
+        return {"source": f"{path} ({label})", "lines": lines, "error": err}
     if s["type"] == "svc":
         info = system.service_info(s["target"])
         lines, err = system.service_events(info["display_name"] if info else s["target"])

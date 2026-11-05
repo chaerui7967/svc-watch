@@ -465,20 +465,56 @@ def newest_log(root):
     return max(files, key=os.path.getmtime) if files else None
 
 
-def start_process(cmd, cwd=None, log_file=None):
+CREATE_BREAKAWAY_FROM_JOB = 0x01000000
+# Settings meant for the dashboard itself (set by service/win/run_server.bat) must not leak into apps it starts.
+_DASHBOARD_ONLY_ENV = ("PYTHONIOENCODING", "SVCWATCH_NO_BROWSER", "SVCWATCH_PORT", "SVCWATCH_DATA")
+
+
+def start_log_path(sid):
+    from .config import DATA_DIR
+    return str(DATA_DIR / "logs" / f"service-{sid}.log")
+
+
+def start_process(cmd, cwd=None, log_file=None, start_log=None):
+    """Start a server command hidden and detached from the dashboard. Output goes to the service's log file
+    (or the dashboard's per-service start log) so a failing start can be diagnosed from the log tab."""
+    import os
+    import time
+    from datetime import datetime
     if not cmd:
         return False, "시작 명령이 설정되지 않았습니다. 설정 탭에서 '시작 명령'을 입력하세요."
-    out = open(log_file, "ab") if log_file else subprocess.DEVNULL
+    if not cwd or not os.path.isdir(cwd):
+        return False, "어느 폴더에서 실행할지 모릅니다. 설정 탭에서 '프로젝트 폴더'를 입력하세요."
+    path = log_file or start_log
+    out = subprocess.DEVNULL
+    if path:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        out = open(path, "ab")
+        out.write(f"\n[{datetime.now():%Y-%m-%d %H:%M:%S}] svc.watch 시작: {cmd} (폴더 {cwd})\n".encode("utf-8"))
+        out.flush()
+    env = {k: v for k, v in os.environ.items() if k not in _DASHBOARD_ONLY_ENV}
+    env["PYTHONUNBUFFERED"] = "1"
+    # CREATE_NO_WINDOW gives the shell a hidden console that child programs (uv, python) share, so no window pops up.
+    # Breaking away from the job keeps the server alive if the dashboard's scheduled task is stopped.
+    flags = CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
     try:
-        # The command is configured by the dashboard owner, so it runs through the shell like a .bat line.
-        subprocess.Popen(cmd, cwd=cwd or None, shell=True, stdout=out, stderr=subprocess.STDOUT,
-                         stdin=subprocess.DEVNULL,
-                         creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW)
+        try:
+            proc = subprocess.Popen(cmd, cwd=cwd, shell=True, stdout=out, stderr=subprocess.STDOUT,
+                                    stdin=subprocess.DEVNULL, env=env, creationflags=flags | CREATE_BREAKAWAY_FROM_JOB)
+        except PermissionError:  # the job doesn't allow breakaway
+            proc = subprocess.Popen(cmd, cwd=cwd, shell=True, stdout=out, stderr=subprocess.STDOUT,
+                                    stdin=subprocess.DEVNULL, env=env, creationflags=flags)
     except OSError as e:
         return False, f"실행 실패: {e}"
     finally:
-        if log_file:
+        if path:
             out.close()
+    # A command that dies right away (typo, wrong folder, missing package) should fail loudly, not look "started".
+    time.sleep(3)
+    code = proc.poll()
+    if code is not None and code != 0:
+        tail = tail_file(path, 5)[0] if path else []
+        return False, f"시작 직후 종료됨 (종료 코드 {code})" + (": " + " / ".join(l for l in tail if l.strip())[-300:] if tail else "")
     return True, None
 
 
