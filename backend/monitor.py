@@ -274,6 +274,13 @@ class Monitor:
                 if rt["latency"] and s["health"] in ("tcp", "http") and rt["latency"] > lat_limit:
                     status, reason = "warning", f"응답시간 {rt['latency']}ms (기준 {lat_limit}ms)"
 
+            # Stopped on purpose from the dashboard: show "중지됨" instead of "응답 없음" until it runs again.
+            if s.get("stopped_by_user"):
+                if status == "down":
+                    status, reason = "stopped", "대시보드에서 중지함"
+                elif status in ("running", "warning"):  # started again some other way: forget the stop
+                    self._mark_stopped_by_user(s["id"], False)
+
             prev = rt["status"]
             if proc_cwd:
                 rt["proc_cwd"] = proc_cwd
@@ -332,6 +339,8 @@ class Monitor:
         with self.lock:
             rt = self._rt(sid)
             rt["expected"] = action != "stop"
+        if ok:
+            self._mark_stopped_by_user(sid, action == "stop")
         label = {"start": "시작", "stop": "중지", "restart": "재시작"}[action]
         who = "자동" if auto else "대시보드에서"
         if ok:
@@ -346,6 +355,17 @@ class Monitor:
             proc_cwd = self._rt(s["id"]).get("proc_cwd")
         return system.start_process(s.get("start_cmd"), s.get("cwd") or proc_cwd, s.get("log_file"),
                                     system.start_log_path(s["id"]))
+
+    def _mark_stopped_by_user(self, sid, stopped):
+        """Remember an intentional stop in config.json so it survives dashboard restarts."""
+        with store.lock:
+            for svc in store.data["services"]:
+                if svc["id"] == sid and bool(svc.get("stopped_by_user")) != stopped:
+                    if stopped:
+                        svc["stopped_by_user"] = True
+                    else:
+                        svc.pop("stopped_by_user", None)
+                    store.save()
 
     def _control_http(self, s, action):
         port = checks.local_port(s["target"])

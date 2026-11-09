@@ -412,3 +412,26 @@ th[data-sort] button::after { content: "\2195"; opacity: .3; font-size: 11px; }
 th.sorted { color: var(--color-foreground); }
 th.sorted[aria-sort="ascending"] button::after { content: "\25B2"; opacity: .9; font-size: 9px; }
 th.sorted[aria-sort="descending"] button::after { content: "\25BC"; opacity: .9; font-size: 9px; }
+
+/* 중분류 group header rows in the service list */
+tr.svc-group td { padding: 8px 14px; }
+tr.svc-group .grp { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-family: var(--font-body); }
+tr.svc-group .grp b { color: var(--color-foreground); font-size: 13px; font-weight: 700; }
+tr.svc-group .grp-meta { font-weight: 400; }
+tr.svc-group .btn.sm { min-height: 28px; padding: 0 9px; font-size: 12px; }
+.grpform { display: flex; gap: 6px; align-items: center; max-width: 340px; }
+.grpform .input { min-height: 32px; flex: 1; }
+
+/* Checkbox selection */
+th.selcell, td.selcell { width: 36px; padding-left: 14px; padding-right: 0; cursor: pointer; }
+.selcell input, .grp input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--color-accent); cursor: pointer; vertical-align: middle; }
+tbody tr.checked { background: color-mix(in srgb, var(--color-accent) 7%, transparent); }
+.selbar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 16px;
+  border-bottom: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  position: sticky; top: 0; z-index: 3;
+}
+.selbar .selcount { font-size: 14px; white-space: nowrap; }
+.selbar .selnames { font-size: 12px; min-width: 0; max-width: 520px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.selbar .btn.sm { min-height: 30px; }

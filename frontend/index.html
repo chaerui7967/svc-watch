@@ -109,6 +109,7 @@
           </div>
           <div class="seg" id="statusSeg" role="group" aria-label="상태 필터"></div>
           <div class="spacer"></div>
+          <label class="check"><input type="checkbox" id="groupView" checked> 중분류로 묶기</label>
           <label class="sr-only" for="typeSel">유형 필터</label>
           <select class="input" id="typeSel">
             <option value="">모든 유형</option>
@@ -119,10 +120,12 @@
             <option value="task">작업 스케줄러</option>
           </select>
         </div>
+        <div class="selbar" id="selBar" role="region" aria-label="선택한 서비스 일괄 제어" hidden></div>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
+                <th class="selcell"><input type="checkbox" id="selAll" aria-label="보이는 서비스 모두 선택"></th>
                 <th data-sort="status"><button type="button">상태</button></th>
                 <th data-sort="name"><button type="button">서비스</button></th>
                 <th data-sort="type"><button type="button">유형</button></th>
@@ -289,6 +292,7 @@
   </div>
 </div>
 <datalist id="discoverList"></datalist>
+<datalist id="groupList"></datalist>
 
 <script src="app.js"></script>
 </body>

@@ -242,7 +242,7 @@ function renderSeg() {
 function renderRows() {
   const svcs = state.ov?.services || [];
   if (!svcs.length) {
-    $('#rows').innerHTML = `<tr><td colspan="10"><div class="empty"><b>등록된 서비스가 없어요</b>Windows 서비스, 프로세스, Docker 컨테이너, HTTP 주소를 등록해 모니터링을 시작하세요.<button class="btn accent" data-add>${ic('plus')}첫 서비스 등록</button></div></td></tr>`;
+    $('#rows').innerHTML = `<tr><td colspan="11"><div class="empty"><b>등록된 서비스가 없어요</b>Windows 서비스, 프로세스, Docker 컨테이너, HTTP 주소를 등록해 모니터링을 시작하세요.<button class="btn accent" data-add>${ic('plus')}첫 서비스 등록</button></div></td></tr>`;
     return;
   }
   const q = state.q.toLowerCase();
@@ -251,11 +251,13 @@ function renderRows() {
     .filter(s => !q || [s.name, s.target, s.tags, (s.ports || []).join(',')].join(' ').toLowerCase().includes(q))
     .sort(compareServices);
   renderSortHeaders();
-  $('#rows').innerHTML = list.map(s => {
+  $('#groupList').innerHTML = serviceGroups().map(g => `<option value="${esc(g)}">`).join('');
+  const row = s => {
     const lat = s.latency;
     const canCtl = s.type !== 'http' || !!s.start_cmd;
     const running = s.status === 'running' || s.status === 'warning';
-    return `<tr data-id="${s.id}" tabindex="0" aria-selected="${state.drawer?.kind === 'svc' && state.drawer.id === s.id}">
+    return `<tr data-id="${s.id}" tabindex="0" aria-selected="${state.drawer?.kind === 'svc' && state.drawer.id === s.id}" class="${state.sel.has(s.id) ? 'checked' : ''}">
+      <td class="selcell"><input type="checkbox" data-sel="${s.id}" ${state.sel.has(s.id) ? 'checked' : ''} aria-label="${esc(s.name)} 선택"></td>
       <td>${badge(s.status)}</td>
       <td><div class="svc"><span class="ico">${ic(TYPE[s.type].icon)}</span><div><b>${esc(s.name)}${s.web_url ? ` <a class="rowlink" href="${esc(s.web_url)}" target="_blank" rel="noopener" title="${esc(s.web_url)} 열기" aria-label="${esc(s.name)} 웹 페이지 열기">${ic('external')}</a>` : ''}</b>${s.reason && s.status !== 'running' ? `<span class="alert ${s.status === 'down' ? 'crit' : ''}" title="${esc(s.reason)}">${esc(s.reason)}</span>` : `<span title="${esc(s.target)}">${esc(s.target)}</span>`}</div></div></td>
       <td><span class="muted" style="font-size:13px">${TYPE[s.type].short}</span></td>
@@ -269,8 +271,142 @@ function renderRows() {
         ? `<button class="btn sm icon" data-act="restart" aria-label="${esc(s.name)} 재시작" title="재시작">${ic('restart')}</button><button class="btn sm icon danger" data-act="stop" aria-label="${esc(s.name)} 중지" title="중지">${ic('stop')}</button>`
         : `<button class="btn sm" data-act="start" aria-label="${esc(s.name)} 시작">${ic('play')}시작</button>`) : ''}</div></td>
     </tr>`;
-  }).join('') || `<tr><td colspan="10" class="muted" style="text-align:center;padding:36px">조건에 맞는 서비스가 없습니다.</td></tr>`;
+  };
+  let html;
+  if (state.groupView) {
+    // One block per 중분류 (sorted by name, 미분류 last); rows keep the chosen column sort inside each block.
+    const groups = new Map();
+    for (const s of list) {
+      const g = s.group || '';
+      if (!groups.has(g)) groups.set(g, []);
+      groups.get(g).push(s);
+    }
+    const names = [...groups.keys()].sort((a, b) => (a === '') - (b === '') || a.localeCompare(b, 'ko'));
+    html = names.map(g => groupHeader(g, groups.get(g)) + groups.get(g).map(row).join('')).join('');
+  } else {
+    html = list.map(row).join('');
+  }
+  $('#rows').innerHTML = html || `<tr><td colspan="11" class="muted" style="text-align:center;padding:36px">조건에 맞는 서비스가 없습니다.</td></tr>`;
+  state.visibleIds = list.map(s => s.id);
+  syncSelection();
 }
+
+/* ---- Checkbox selection: act on just the checked services ---- */
+state.sel = new Set();
+state.visibleIds = [];
+
+function setCheckbox(box, ids) {
+  // Checked when every id is selected, half-checked when only some are.
+  const n = ids.filter(id => state.sel.has(id)).length;
+  box.checked = ids.length > 0 && n === ids.length;
+  box.indeterminate = n > 0 && n < ids.length;
+}
+
+function syncSelection() {
+  const exists = new Set((state.ov?.services || []).map(s => s.id));
+  for (const id of [...state.sel]) if (!exists.has(id)) state.sel.delete(id);  // drop services that were removed
+  setCheckbox($('#selAll'), state.visibleIds);
+  $$('#rows [data-gsel]').forEach(b => setCheckbox(b, JSON.parse(b.dataset.gsel)));
+  const picked = (state.ov?.services || []).filter(s => state.sel.has(s.id));
+  const bar = $('#selBar');
+  bar.hidden = !picked.length;
+  if (!picked.length) return;
+  const hidden = picked.filter(s => !state.visibleIds.includes(s.id)).length;
+  bar.innerHTML = `<span class="selcount"><b>${picked.length}개 선택</b>${hidden ? ` <span class="muted">(필터로 가려진 ${hidden}개 포함)</span>` : ''}</span>
+    <span class="selnames muted" title="${esc(picked.map(s => s.name).join(', '))}">${esc(picked.map(s => s.name).join(', '))}</span>
+    <span class="spacer"></span>
+    <button class="btn sm" data-selact="start">${ic('play')}모두 시작</button>
+    <button class="btn sm" data-selact="restart">${ic('restart')}모두 재시작</button>
+    <button class="btn sm danger" data-selact="stop">${ic('stop')}모두 중지</button>
+    <button class="btn sm" data-selact="clear">${ic('x')}선택 해제</button>`;
+}
+
+function toggleIds(ids, on) {
+  for (const id of ids) on ? state.sel.add(id) : state.sel.delete(id);
+  renderRows();
+}
+
+async function controlSelected(action, btn) {
+  const picked = (state.ov?.services || []).filter(s => state.sel.has(s.id));
+  if (!picked.length) return;
+  const label = { start: '시작', stop: '중지', restart: '재시작' }[action];
+  if (action !== 'start' && !confirm(`선택한 서비스 ${picked.length}개를 모두 ${label}할까요?\n\n${picked.map(s => '· ' + s.name).join('\n')}`)) return;
+  await withBusy(btn, async () => {
+    toast(`선택한 ${picked.length}개 ${label} 중… (서버마다 몇 초씩 걸려요)`);
+    const r = await api('/api/services/control', { method: 'POST', body: { ids: picked.map(s => s.id), action } });
+    toast(`선택한 서비스 ${label}: 완료 ${r.done}${r.skipped ? ` · 건너뜀 ${r.skipped}` : ''}${r.failed ? ` · 실패 ${r.failed}` : ''}`, r.failed ? 'error' : 'info');
+    const fails = r.results.filter(x => !x.ok);
+    if (fails.length) toast(fails.map(x => `${x.name}: ${x.error}`).join(' / '), 'error');
+    setTimeout(loadOverview, 1500);
+  });
+}
+
+$('#selAll').onchange = e => toggleIds(state.visibleIds, e.target.checked);
+$('#selBar').onclick = e => {
+  const b = e.target.closest('[data-selact]');
+  if (!b) return;
+  if (b.dataset.selact === 'clear') { state.sel.clear(); renderRows(); return; }
+  controlSelected(b.dataset.selact, b);
+};
+$('#rows').addEventListener('change', e => {
+  const t = e.target;
+  if (t.dataset.sel) toggleIds([+t.dataset.sel], t.checked);
+  else if (t.dataset.gsel) toggleIds(JSON.parse(t.dataset.gsel), t.checked);
+});
+
+/* ---- 중분류 (service groups) ---- */
+state.groupView = (() => { try { return localStorage.getItem('groupView') !== '0'; } catch { return true; } })();
+
+function serviceGroups() {
+  return [...new Set((state.ov?.services || []).map(s => s.group).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
+}
+
+function groupHeader(name, members) {
+  // Counts come from the whole group, not just the rows the current filter shows.
+  const all = (state.ov?.services || []).filter(s => (s.group || '') === name);
+  const up = all.filter(s => s.status === 'running' || s.status === 'warning').length;
+  const bad = all.filter(s => s.status === 'down' || s.status === 'warning').length;
+  const label = name || '미분류';
+  return `<tr class="group svc-group"><td colspan="11"><div class="grp">
+      <input type="checkbox" data-gsel="${esc(JSON.stringify(members.map(s => s.id)))}" aria-label="${esc(label)} 중분류 전체 선택">
+      ${ic('layers')}<b>${esc(label)}</b>
+      <span class="grp-meta">· ${all.length}개 · 실행 ${up}/${all.length}${bad ? ` · <span style="color:var(--warn-text)">문제 ${bad}</span>` : ''}${members.length < all.length ? ` · 필터로 ${members.length}개 표시` : ''}</span>
+      <span class="spacer"></span>
+      <button class="btn sm" data-gact="start" data-group="${esc(name)}" title="${esc(label)} 전체 시작">${ic('play')}모두 시작</button>
+      <button class="btn sm" data-gact="restart" data-group="${esc(name)}" title="${esc(label)} 전체 재시작">${ic('restart')}모두 재시작</button>
+      <button class="btn sm danger" data-gact="stop" data-group="${esc(name)}" title="${esc(label)} 전체 중지">${ic('stop')}모두 중지</button>
+    </div></td></tr>`;
+}
+
+async function controlGroup(name, action, btn) {
+  const label = { start: '시작', stop: '중지', restart: '재시작' }[action];
+  const members = (state.ov?.services || []).filter(s => (s.group || '') === name);
+  if (action !== 'start' && !confirm(`'${name || '미분류'}' 중분류의 서비스 ${members.length}개를 모두 ${label}할까요?\n\n${members.map(s => '· ' + s.name).join('\n')}`)) return;
+  await withBusy(btn, async () => {
+    toast(`'${name || '미분류'}' ${members.length}개 ${label} 중… (서버마다 몇 초씩 걸려요)`);
+    const r = await api('/api/groups/control', { method: 'POST', body: { group: name, action } });
+    const fails = r.results.filter(x => !x.ok);
+    toast(`'${name || '미분류'}' ${label}: 완료 ${r.done}${r.skipped ? ` · 건너뜀 ${r.skipped}` : ''}${r.failed ? ` · 실패 ${r.failed}` : ''}`, r.failed ? 'error' : 'info');
+    if (fails.length) toast(fails.map(x => `${x.name}: ${x.error}`).join(' / '), 'error');
+    setTimeout(loadOverview, 1500);
+  });
+}
+
+async function saveGroup(sid, value, btn) {
+  await withBusy(btn, async () => {
+    const r = await api(`/api/services/${sid}/group`, { method: 'PUT', body: { group: value } });
+    toast(r.group ? `중분류를 '${r.group}'(으)로 정했어요` : '중분류를 비웠어요');
+    await loadOverview();
+    refreshDrawer();
+  });
+}
+
+$('#groupView').checked = state.groupView;
+$('#groupView').onchange = e => {
+  state.groupView = e.target.checked;
+  try { localStorage.setItem('groupView', state.groupView ? '1' : '0'); } catch { /* per-viewer convenience only */ }
+  renderRows();
+};
 
 /* Column sorting: click a header to sort, click again to flip. Empty values always go last. */
 const STATUS_ORDER = { down: 0, warning: 1, unknown: 2, running: 3, stopped: 4 };
@@ -362,6 +498,8 @@ async function refreshDrawer(quiet) {
     : `<button class="btn sm" data-dact="start">${ic('play')}시작</button>`;
   $$('#dTabs .tab').forEach(t => t.setAttribute('aria-selected', t.dataset.tab === state.tab));
   if (quiet && state.tab !== 'overview') return;
+  // Don't redraw (and wipe) a field the user is typing in during the 5-second auto refresh.
+  if (quiet && $('#dBody').contains(document.activeElement) && document.activeElement.matches('input, select, textarea')) return;
   renderServiceTab(s);
 }
 
@@ -372,6 +510,9 @@ function renderServiceTab(s) {
     body.innerHTML = `
       ${s.reason && s.status !== 'running' ? `<div class="callout ${s.status}">${sIcon(s.status)}<div><b>${STATUS[s.status]?.label || ''}</b> · ${esc(s.reason)}</div></div>` : ''}
       <dl class="kv">
+        <dt>중분류</dt><dd><form class="grpform" data-sid="${s.id}">
+          <input class="input" name="group" list="groupList" maxlength="40" value="${esc(s.group || '')}" placeholder="예: 딥페이크, 운영 서버" aria-label="중분류">
+          <button class="btn sm" type="submit">저장</button></form></dd>
         <dt>대상</dt><dd><code>${esc(s.target)}</code></dd>
         <dt>PID</dt><dd class="mono">${s.pid ?? '—'}</dd>
         <dt>포트</dt><dd class="mono">${(s.ports || []).map(esc).join(', ') || '—'}</dd>
@@ -477,8 +618,9 @@ function serviceFormHtml(s, edit) {
     <div class="field" data-f="proconly"><label for="f_cmd">시작 명령 <span class="muted" style="font-weight:400">(선택 · 시작/재시작 버튼에 사용)</span></label><input class="input mono" id="f_cmd" name="start_cmd" value="${esc(v.start_cmd || '')}" placeholder="예: python app.py"></div>
     <div class="field" data-f="cwdrow"><label for="f_cwd">프로젝트 폴더 <span class="muted" style="font-weight:400">(선택)</span></label><input class="input mono" id="f_cwd" name="cwd" value="${esc(v.cwd || '')}" placeholder="예: C:\\Users\\user\\Desktop\\work\\y_issues">
       <div class="hint">비워 두면 실행 중인 서버 위치에서 자동으로 찾아요. 이 폴더의 logs\\*.log 도 자동으로 보여 줍니다.</div></div>
+    <div class="field" data-f="logrow"><label for="f_log">로그 파일 <span class="muted" style="font-weight:400">(선택)</span></label><input class="input mono" id="f_log" name="log_file" value="${esc(v.log_file || '')}" placeholder="C:\\logs\\app.log"></div>
     <div class="two">
-      <div class="field" data-f="logrow"><label for="f_log">로그 파일 <span class="muted" style="font-weight:400">(선택)</span></label><input class="input mono" id="f_log" name="log_file" value="${esc(v.log_file || '')}" placeholder="C:\\logs\\app.log"></div>
+      <div class="field"><label for="f_group">중분류 <span class="muted" style="font-weight:400">(선택 · 묶어서 한 번에 켜고 끄기)</span></label><input class="input" id="f_group" name="group" list="groupList" maxlength="40" value="${esc(v.group || '')}" placeholder="예: 딥페이크"></div>
       <div class="field"><label for="f_tags">태그</label><input class="input" id="f_tags" name="tags" maxlength="100" value="${esc(v.tags)}" placeholder="backend, db"></div>
     </div>
     <fieldset class="field" style="border:0;padding:0;margin:0">
@@ -602,7 +744,7 @@ function readServiceForm(form) {
   return {
     type, name: f('name').value.trim(), target: f('target').value.trim(), health,
     health_target: health === 'process' ? null : (type === 'http' ? f('target').value.trim() : f('health_target').value.trim()),
-    interval: +f('interval').value, tags: f('tags').value.trim(), notify: f('notify').checked,
+    interval: +f('interval').value, tags: f('tags').value.trim(), group: f('group').value.trim(), notify: f('notify').checked,
     auto_restart: f('auto_restart').checked, cpu_alert: f('cpu_alert').checked,
     cpu_threshold: +f('cpu_threshold').value || 80, cpu_minutes: +f('cpu_minutes').value || 5,
     latency_ms: +f('latency_ms').value || 1000,
@@ -1063,6 +1205,14 @@ document.addEventListener('click', e => {
     return;
   }
   if (e.target.closest('[data-add]')) { openModal(); return; }
+  // Checkbox column: toggle selection only, never open the detail panel. The whole cell is a click target.
+  const selCell = e.target.closest('#rows .selcell, #rows .grp input[type=checkbox]');
+  if (selCell) {
+    if (e.target.matches('td.selcell')) e.target.querySelector('input')?.click();
+    return;
+  }
+  const gact = e.target.closest('#rows [data-gact]');
+  if (gact) { controlGroup(gact.dataset.group, gact.dataset.gact, gact); return; }
   const act = e.target.closest('#rows [data-act]');
   if (act) { controlService(+act.closest('tr').dataset.id, act.dataset.act, act); return; }
   const row = e.target.closest('#rows tr[data-id]');
@@ -1075,6 +1225,12 @@ document.addEventListener('click', e => {
   if (dact && state.drawer?.kind === 'svc') { controlService(state.drawer.id, dact.dataset.dact, dact).then(() => setTimeout(refreshDrawer, 1500)); return; }
   const dcact = e.target.closest('[data-dcact]');
   if (dcact && state.drawer?.kind === 'ctr') controlContainer(state.drawer.name, dcact.dataset.dcact, dcact);
+});
+document.addEventListener('submit', e => {
+  const f = e.target.closest('.grpform');
+  if (!f) return;
+  e.preventDefault();
+  saveGroup(+f.dataset.sid, f.querySelector('[name=group]').value.trim(), f.querySelector('button'));
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && e.target.matches('#rows tr[data-id]')) openService(+e.target.dataset.id);

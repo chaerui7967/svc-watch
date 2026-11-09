@@ -56,6 +56,7 @@ class ServiceIn(BaseModel):
     interval: int = Field(10, ge=5, le=3600)
     port: Optional[int] = Field(None, ge=1, le=65535)
     tags: str = Field("", max_length=100)
+    group: str = Field("", max_length=40)  # 중분류: services are listed and started/stopped together by group
     notify: bool = True
     auto_restart: bool = False
     cpu_alert: bool = True
@@ -69,6 +70,7 @@ class ServiceIn(BaseModel):
     @model_validator(mode="after")
     def check(self):
         self.name, self.target = self.name.strip(), self.target.strip()
+        self.group = _clean_group(self.group)
         if self.type == "http":
             self.health, self.health_target = "http", self.health_target or self.target
         if self.type == "task":
@@ -164,7 +166,8 @@ def update_service(sid: int, body: ServiceIn):
     with store.lock:
         for i, s in enumerate(store.data["services"]):
             if s["id"] == sid:
-                store.data["services"][i] = {"id": sid, **body.model_dump()}
+                kept = {"stopped_by_user": True} if s.get("stopped_by_user") else {}  # not a setting; keep it
+                store.data["services"][i] = {"id": sid, **body.model_dump(), **kept}
         store.save()
     return {"ok": True}
 
@@ -188,6 +191,82 @@ def _project_folder(s):
         if path and os.path.isdir(path):
             return path
     return None
+
+
+def _clean_group(name):
+    return re.sub(r"[\x00-\x1f\x7f]", " ", name or "").strip()[:40]
+
+
+class GroupIn(BaseModel):
+    group: str = Field("", max_length=40)
+
+
+@app.put("/api/services/{sid}/group")
+def set_service_group(sid: int, body: GroupIn):
+    """Change only the 중분류 of a service (from the detail panel), leaving its other settings alone."""
+    _find(sid)
+    group = _clean_group(body.group)
+    with store.lock:
+        for s in store.data["services"]:
+            if s["id"] == sid:
+                s["group"] = group
+        store.save()
+    return {"ok": True, "group": group}
+
+
+class GroupControlIn(BaseModel):
+    group: str = Field("", max_length=40)  # "" = services without a 중분류
+    action: Literal["start", "stop", "restart"]
+
+
+def _bulk_control(members, action):
+    """Start/stop/restart several services at once. Services already in the wanted state are skipped,
+    and the rest run in parallel so one slow server doesn't hold up the others."""
+    from concurrent.futures import ThreadPoolExecutor
+    status = {v["id"]: v["status"] for v in monitor.overview()["services"]}
+
+    def run(s):
+        st = status.get(s["id"])
+        if s["type"] == "http" and not s.get("start_cmd") and action != "stop":
+            return {"id": s["id"], "name": s["name"], "ok": True, "skipped": "시작 명령이 없어 건너뜀"}
+        if action == "start" and st in ("running", "warning"):
+            return {"id": s["id"], "name": s["name"], "ok": True, "skipped": "이미 실행 중"}
+        if action == "stop" and st == "stopped":
+            return {"id": s["id"], "name": s["name"], "ok": True, "skipped": "이미 중지됨"}
+        ok, err = monitor.control(s["id"], action)
+        return {"id": s["id"], "name": s["name"], "ok": ok, "error": err}
+
+    with ThreadPoolExecutor(4) as ex:
+        results = list(ex.map(run, members))
+    return {"action": action, "results": results,
+            "done": sum(r["ok"] and not r.get("skipped") for r in results),
+            "skipped": sum(bool(r.get("skipped")) for r in results),
+            "failed": sum(not r["ok"] for r in results)}
+
+
+@app.post("/api/groups/control")
+def group_control(body: GroupControlIn):
+    """Start/stop/restart every service in a 중분류."""
+    group = _clean_group(body.group)
+    members = [s for s in store.snapshot()["services"] if _clean_group(s.get("group")) == group]
+    if not members:
+        fail("이 중분류에 등록된 서비스가 없어요")
+    return {"group": group, **_bulk_control(members, body.action)}
+
+
+class SelectionControlIn(BaseModel):
+    ids: list[int] = Field(min_length=1, max_length=200)
+    action: Literal["start", "stop", "restart"]
+
+
+@app.post("/api/services/control")
+def selection_control(body: SelectionControlIn):
+    """Start/stop/restart the services checked in the list."""
+    wanted = set(body.ids)
+    members = [s for s in store.snapshot()["services"] if s["id"] in wanted]
+    if not members:
+        fail("선택한 서비스를 찾을 수 없어요")
+    return _bulk_control(members, body.action)
 
 
 # Declared before the start/stop route so "open-folder" isn't taken as an action name.
